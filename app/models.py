@@ -460,70 +460,48 @@ class SpringExcuseResponse(BaseModel):
         )
 
 
-# 이 사전은 Cerebras에 보내는 JSON Schema다. 배열 개수와 문자열 길이처럼 제공자마다
-# 지원 범위가 달라질 수 있는 제약은 ``ExcuseResult`` Pydantic 모델에서 최종 검증한다.
-# 즉, Schema는 모델이 알아야 할 필드 형태를 안내하고 Pydantic은 서버 신뢰 경계를 지킨다.
+# Cerebras strict Structured Output용 최소 JSON Schema.
+# 설명·문자열 패턴·배열 길이처럼 strict mode에서 호환성이 달라질 수 있는 제약은
+# 넣지 않고, 실제 값 범위와 문장 품질은 Pydantic 정규화 계층에서 보완한다.
 LLM_RESULT_SCHEMA = {
     "type": "object",
     "properties": {
         "excuse": {"type": "string"},
-        "recommendedAction": {
-            "type": "string",
-            "description": "변명을 보낸 뒤 사용자가 실제로 할 복구 행동 한 가지.",
-        },
-        "likelyFollowUp": {
-            "type": "string",
-            "description": "상대가 이어서 물을 가능성이 가장 높은 짧은 질문 한 가지.",
-        },
+        "recommendedAction": {"type": "string"},
+        "likelyFollowUp": {"type": "string"},
         "replyOptions": {
             "type": "array",
             "items": {"type": "string"},
-            "description": (
-                "같은 사실을 유지하는 답장 선택지. REPLY 모드에서는 정확히 3개를 순서대로 "
-                "작성한다: 짧은 직접 답장, 정중한 책임·수습 답장, 가벼운 관계 수습 답장. "
-                "세 문장은 길이·톤·수습 전략이 서로 달라야 한다."
-            ),
         },
-        "successRate": {
-            "type": "integer",
-            "description": "상대가 믿을 가능성. 0부터 100 사이의 정수.",
-        },
-        "realism": {
-            "type": "integer",
-            "enum": [1, 2, 3, 4, 5],
-            "description": "현실성 점수. 1부터 5 사이의 정수.",
-        },
-        "persuasion": {
-            "type": "integer",
-            "enum": [1, 2, 3, 4, 5],
-            "description": "설득력 점수. 1부터 5 사이의 정수.",
-        },
+        "successRate": {"type": "integer"},
+        "realism": {"type": "integer"},
+        "persuasion": {"type": "integer"},
         "suspicionLevel": {
             "type": "string",
             "enum": ["LOW", "MEDIUM", "HIGH"],
         },
-        "riskFactors": {"type": "array", "items": {"type": "string"}},
+        "riskFactors": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
         "aftermath": {
             "type": "array",
             "items": {
                 "type": "object",
                 "properties": {
                     "when": {"type": "string"},
-                    "dayOffset": {
-                        "type": "integer",
-                        "description": "후속 질문이 발생할 예상 시점. 오늘은 0, 3일 뒤는 3, 7일 뒤는 7.",
-                    },
+                    "dayOffset": {"type": "integer"},
                     "question": {"type": "string"},
-                    "collapseRate": {
-                        "type": "integer",
-                        "description": "변명이 무너질 가능성. 0부터 100 사이의 정수.",
-                    },
+                    "collapseRate": {"type": "integer"},
                 },
                 "required": ["when", "dayOffset", "question", "collapseRate"],
                 "additionalProperties": False,
             },
         },
-        "remember": {"type": "array", "items": {"type": "string"}},
+        "remember": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
     },
     "required": [
         "excuse",

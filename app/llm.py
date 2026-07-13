@@ -1,6 +1,6 @@
 """Cerebras의 OpenAI 호환 Chat Completions API 어댑터.
 
-이 모듈은 제공자 통신·재시도·Structured Outputs 파싱만 담당한다. 입력 문맥 조립은
+이 모듈은 제공자 통신·재시도·관대한 응답 파싱만 담당한다. 입력 문맥 조립은
 prompts.py, Spring 응답 변환은 service.py에서 담당한다.
 """
 
@@ -149,8 +149,8 @@ class CerebrasClient:
                         raise self._provider_error(response.status_code)
 
                     try:
-                        # response_format이 있어도 제공자가 빈 content·잘린 JSON을 반환할 수
-                        # 있으므로 HTTP 성공 이후에도 구조와 Pydantic 제약을 다시 검증한다.
+                        # strict schema가 JSON 형식을 보장해도, 제공자 응답 구조 자체가
+                        # 비정상인 경우를 대비해 HTTP 성공 이후 한 번 더 정규화한다.
                         body = response.json()
                         result = self._parse_result(body)
                     except _TruncatedResponse:
@@ -254,9 +254,9 @@ class CerebrasClient:
     ) -> dict[str, Any]:
         """Cerebras OpenAI 호환 API가 요구하는 비스트리밍 JSON 요청 본문을 만든다.
 
-        ``stream=False``로 두는 이유는 Spring이 부분 토큰이 아닌 하나의 검증된 도메인
-        결과를 저장하기 때문이다. ``strict=True``는 응답에 정의되지 않은 필드가 섞이는
-        일을 줄이고, 최종적으로 Pydantic 검증을 한 번 더 거친다.
+        ``stream=False``로 두는 이유는 Spring이 부분 토큰이 아닌 하나의 결과를 저장하기
+        때문이다. Cerebras strict mode 요구사항에 맞춘 최소 스키마를 보내 일관된 JSON을
+        받고, 응답 파서는 예외적인 제공자 응답에도 방어적으로 동작한다.
         """
         return {
             "model": self.settings.cerebras_model,
@@ -268,9 +268,14 @@ class CerebrasClient:
             "max_completion_tokens": completion_tokens,
             "stream": False,
             "reasoning_effort": self.settings.reasoning_effort,
-            # 제공자마다 strict json_schema 지원 수준이 달라, 답변 본문이 있는데도
-            # 부가 필드 하나 때문에 전체 결과가 거절되지 않도록 JSON object만 요구한다.
-            "response_format": {"type": "json_object"},
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "tongchoo_excuse_v1",
+                    "strict": True,
+                    "schema": LLM_RESULT_SCHEMA,
+                },
+            },
         }
 
     @staticmethod
