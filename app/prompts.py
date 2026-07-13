@@ -102,7 +102,7 @@ def _conversation_text(request: GenerateRequest) -> str:
         return "없음"
 
     return "\n".join(
-        f"{index}. {turn.role.value}: {_safe_value(turn.content)}"
+        f"{index}. {turn.role.value}: {_safe_value(turn.message)}"
         for index, turn in enumerate(request.conversation, start=1)
     )
 

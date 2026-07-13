@@ -30,6 +30,6 @@ class ExcuseGenerationService:
         request: GenerateRequest,
         request_id: str,
     ) -> SpringExcuseResponse:
-        """제공자 결과를 Spring의 `ExcuseResponse` 핵심 구조로 변환한다."""
+        """제공자 결과를 Spring 클라이언트 응답 구조로 변환한다."""
         result = await self.generate(request, request_id)
-        return SpringExcuseResponse.from_result(request, result)
+        return SpringExcuseResponse.from_result(result)

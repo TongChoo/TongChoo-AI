@@ -70,14 +70,23 @@ class Aftermath(BaseModel):
 class ConversationTurn(BaseModel):
     """Spring이 DB 계보에서 조립한 현재 대화 가지의 한 발화."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     role: ConversationRole
-    content: Annotated[str, Field(min_length=1, max_length=2000)]
+    # Java record `ConversationTurn` exposes `message`. `content` remains an
+    # accepted input alias for compatibility with the old README examples.
+    message: Annotated[
+        str,
+        Field(
+            min_length=1,
+            max_length=2000,
+            validation_alias=AliasChoices("message", "content"),
+        ),
+    ]
 
-    @field_validator("content", mode="before")
+    @field_validator("message", mode="before")
     @classmethod
-    def trim_content(cls, value: object) -> object:
+    def trim_message(cls, value: object) -> object:
         """공백만 있는 대화가 프롬프트에 들어가지 않도록 앞뒤 공백을 제거한다."""
         return value.strip() if isinstance(value, str) else value
 
@@ -86,7 +95,7 @@ class ExcuseResult(BaseModel):
     """Cerebras가 Structured Outputs로 반환해야 하는 평면 결과.
 
     제공자 응답은 검증하기 쉽게 평면 구조로 받고, Spring에 돌려주기 직전에
-    `SpringExcuseResponse`의 `analysis` 구조로 변환한다.
+    Spring 클라이언트 응답 구조로 변환한다.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -262,60 +271,68 @@ class SpringReplyRequest(SpringContextRequest):
         )
 
 
-class SpringAnalysis(BaseModel):
-    """Spring `ExcuseResponse.analysis`와 같은 중첩 분석 결과."""
+class SpringItem(BaseModel):
+    """Java `FastApiClient.Item` 응답과 일치하는 정렬된 문자열 항목."""
 
     model_config = ConfigDict(extra="forbid")
 
+    content: Annotated[str, Field(min_length=1, max_length=200)]
+    sortOrder: Annotated[int, Field(ge=0)]
+
+
+class SpringAftermath(BaseModel):
+    """Java `FastApiClient.Aftermath` 응답과 일치하는 후속 질문."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    whenLabel: Annotated[str, Field(min_length=1, max_length=100)]
+    dayOffset: Annotated[int, Field(ge=0, le=365)]
+    question: Annotated[str, Field(min_length=1, max_length=300)]
+    collapseRate: Annotated[int, Field(ge=0, le=100)]
+    sortOrder: Annotated[int, Field(ge=0)]
+
+
+class SpringExcuseResponse(BaseModel):
+    """Java `FastApiClient.GeneratedExcuse`와 일치하는 내부 응답 계약."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    excuse: Annotated[str, Field(min_length=20, max_length=1000)]
     successRate: Annotated[int, Field(ge=0, le=100)]
     realism: Annotated[int, Field(ge=1, le=5)]
     persuasion: Annotated[int, Field(ge=1, le=5)]
     suspicionLevel: SuspicionLevel
-    riskFactors: Annotated[list[str], Field(min_length=1, max_length=5)]
-
-
-class SpringExcuseResponse(BaseModel):
-    """FastAPI가 책임지는 Spring 응답의 AI 생성 영역.
-
-    ID, 부모 ID, XP, 복잡도 경고, 생성 시각은 Spring 도메인에서 결정하므로
-    FastAPI가 만들거나 저장하지 않는다.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    incomingMessage: str | None = None
-    roundNumber: Annotated[int, Field(ge=1, le=10)]
-    excuse: Annotated[str, Field(min_length=20, max_length=1000)]
-    target: Target
-    tone: Tone
-    analysis: SpringAnalysis
-    aftermath: Annotated[list[Aftermath], Field(min_length=1, max_length=4)]
-    remember: Annotated[list[str], Field(max_length=8)]
-    recommendedAction: Annotated[str, Field(min_length=1, max_length=300)]
-    likelyFollowUp: Annotated[str, Field(min_length=1, max_length=300)]
-    replyOptions: Annotated[list[str], Field(min_length=2, max_length=3)]
+    riskFactors: Annotated[list[SpringItem], Field(max_length=5)]
+    rememberItems: Annotated[list[SpringItem], Field(max_length=8)]
+    aftermaths: Annotated[list[SpringAftermath], Field(max_length=4)]
 
     @classmethod
-    def from_result(cls, request: GenerateRequest, result: ExcuseResult) -> "SpringExcuseResponse":
-        """평면 제공자 결과를 Spring 응답의 analysis 중첩 구조로 변환한다."""
+    def from_result(cls, result: ExcuseResult) -> "SpringExcuseResponse":
+        """평면 제공자 결과를 Java 클라이언트의 내부 응답 구조로 변환한다."""
         return cls(
-            incomingMessage=request.incomingMessage,
-            roundNumber=request.roundNumber or 1,
             excuse=result.excuse,
-            target=request.target,
-            tone=request.tone,
-            analysis=SpringAnalysis(
-                successRate=result.successRate,
-                realism=result.realism,
-                persuasion=result.persuasion,
-                suspicionLevel=result.suspicionLevel,
-                riskFactors=result.riskFactors,
-            ),
-            aftermath=result.aftermath,
-            remember=result.remember,
-            recommendedAction=result.recommendedAction,
-            likelyFollowUp=result.likelyFollowUp,
-            replyOptions=result.replyOptions,
+            successRate=result.successRate,
+            realism=result.realism,
+            persuasion=result.persuasion,
+            suspicionLevel=result.suspicionLevel,
+            riskFactors=[
+                SpringItem(content=item, sortOrder=index)
+                for index, item in enumerate(result.riskFactors)
+            ],
+            rememberItems=[
+                SpringItem(content=item, sortOrder=index)
+                for index, item in enumerate(result.remember)
+            ],
+            aftermaths=[
+                SpringAftermath(
+                    whenLabel=item.when,
+                    dayOffset=item.dayOffset,
+                    question=item.question,
+                    collapseRate=item.collapseRate,
+                    sortOrder=index,
+                )
+                for index, item in enumerate(result.aftermath)
+            ],
         )
 
 

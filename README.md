@@ -85,8 +85,8 @@ only at `/internal/v1/excuses/generate/raw` for diagnostics.
   "currentExcuse": "회의 시작 시간을 잘못 봐서 20분 늦었어요.",
   "incomingMessage": "그래도 왜 미리 말하지 않았어요?",
   "conversation": [
-    {"role": "assistant", "content": "회의 시작 시간을 잘못 봤어요."},
-    {"role": "user", "content": "그래도 왜 미리 말하지 않았어요?"}
+    {"role": "assistant", "message": "회의 시작 시간을 잘못 봤어요."},
+    {"role": "user", "message": "그래도 왜 미리 말하지 않았어요?"}
   ],
   "roundNumber": 3
 }
@@ -94,9 +94,10 @@ only at `/internal/v1/excuses/generate/raw` for diagnostics.
 
 `conversation` is the current branch selected by Spring and accepts up to 10
 turns. `roundNumber` currently accepts 1~10 to support the expanded round limit.
-The Spring-facing response includes `analysis`, `aftermath`, `remember`,
-`recommendedAction`, `likelyFollowUp`, and 2~3 `replyOptions`. IDs, parent IDs,
-XP, complexity warnings, and timestamps remain Spring-owned fields.
+The Spring-facing response matches the Java client contract: `excuse`, score
+fields, `suspicionLevel`, `riskFactors`, `rememberItems`, and `aftermaths`.
+IDs, parent IDs, XP, complexity warnings, and timestamps remain Spring-owned
+fields.
 
 Set `INTERNAL_SERVICE_TOKEN` in deployed environments. Spring sends it as
 `Authorization: Bearer <token>`.
