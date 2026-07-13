@@ -1,1 +1,6 @@
-"""TongChoo AI service."""
+"""TongChoo AI FastAPI 패키지.
+
+이 패키지는 Spring이 조립한 상황·대화 문맥을 받아 Cerebras로 생성만 수행한다.
+인증, 데이터베이스, 대화 계보 저장처럼 도메인 상태를 바꾸는 기능은 Spring 서비스에
+남겨 두어 AI 생성 서버를 상태 없는 내부 서비스로 유지한다.
+"""

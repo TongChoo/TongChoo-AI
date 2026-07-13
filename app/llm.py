@@ -20,11 +20,18 @@ from app.models import ExcuseResult, LLM_RESULT_SCHEMA
 
 logger = logging.getLogger("tongchoo.ai")
 
+# 이 상태 코드는 요청을 다시 보내도 성공할 가능성이 있는 일시적 네트워크·제공자
+# 장애다. 인증, 결제, 안전성 거절처럼 설정 또는 사용자 입력을 바꿔야 하는 오류는
+# 재시도 대상에 넣지 않는다.
 RETRYABLE_STATUS_CODES = frozenset({408, 429, 500, 502, 503, 504})
 
 
 def api_error(status_code: int, code: str, message: str) -> HTTPException:
-    """FastAPI와 Spring이 함께 사용할 수 있는 일관된 오류 본문을 만든다."""
+    """FastAPI와 Spring이 함께 사용할 수 있는 일관된 오류 본문을 만든다.
+
+    제공자별 예외 메시지를 그대로 노출하지 않고 안정적인 ``code``를 반환하면 Spring은
+    HTTP 상태와 무관하게 재시도·사용자 안내 정책을 구현할 수 있다.
+    """
     return HTTPException(
         status_code=status_code,
         detail={"code": code, "message": message},
@@ -32,18 +39,35 @@ def api_error(status_code: int, code: str, message: str) -> HTTPException:
 
 
 class _ResponseParseError(Exception):
-    """제공자 응답이 기대한 Chat Completions JSON 구조가 아닐 때 사용한다."""
+    """제공자 응답이 기대한 Chat Completions JSON 구조가 아닐 때 사용하는 내부 예외.
+
+    이 예외는 외부 API로 노출하지 않고 ``generate``에서 제한 재시도 또는
+    ``LLM_PARSE_ERROR``로 변환한다.
+    """
 
 
 class _TruncatedResponse(Exception):
-    """응답이 max_completion_tokens에 걸려 잘렸을 때 사용한다."""
+    """응답이 max_completion_tokens에 걸려 잘렸을 때 사용하는 내부 예외.
+
+    일반 형식 오류와 달리 토큰 예산을 늘려 한 번 더 요청할 수 있으므로 별도 타입으로
+    구분한다.
+    """
 
 
 class CerebrasClient:
-    """Cerebras OpenAI 호환 Chat Completions API의 비동기 클라이언트."""
+    """Cerebras OpenAI 호환 Chat Completions API의 비동기 클라이언트.
+
+    이 클래스는 HTTP 통신, 제공자 재시도, Structured Outputs 파싱만 담당한다. 어떤
+    문맥을 넣을지와 결과가 이전 답변을 반복하는지는 각각 prompts.py와 service.py의
+    제품 규칙으로 분리한다.
+    """
 
     def __init__(self, settings: Settings):
-        """API 키·엔드포인트·타임아웃을 한 번만 검증하고 준비한다."""
+        """API 키·엔드포인트·타임아웃을 한 번만 검증하고 준비한다.
+
+        키가 없을 때 서버 시작을 막지 않는 대신, 생성 호출 시 명확한 설정 오류를 낸다.
+        이 방식은 /health와 로컬 API 문서 확인을 가능하게 한다.
+        """
         if not settings.cerebras_api_key:
             raise api_error(
                 503,
@@ -52,7 +76,11 @@ class CerebrasClient:
             )
 
         self.settings = settings
+        # OpenAI 호환 base URL 끝의 슬래시 유무와 관계없이 정확한 endpoint가 되도록
+        # rstrip 후 Chat Completions 경로를 붙인다.
         self.endpoint = f"{settings.cerebras_base_url.rstrip('/')}/chat/completions"
+        # 연결 수립과 응답 생성 시간은 성격이 다르므로 별도 설정을 적용한다. pool도
+        # connect 시간에 맞춰 대기 중인 연결 확보 때문에 요청이 오래 멈추지 않게 한다.
         self.timeout = httpx.Timeout(
             connect=settings.cerebras_connect_timeout_seconds,
             read=settings.cerebras_read_timeout_seconds,
@@ -71,6 +99,7 @@ class CerebrasClient:
         네트워크·일시적 제공자 오류·잘린 응답·형식 오류만 최대 `max_attempts`까지
         재시도한다. 안전성 차단이나 인증·결제 오류는 재시도하지 않는다.
         """
+        # perf_counter는 시스템 시각 변경 영향을 받지 않아 요청 지연시간 측정에 적합하다.
         started = time.perf_counter()
         max_attempts = max(1, self.settings.max_attempts)
         completion_tokens = self.settings.max_completion_tokens
@@ -87,6 +116,7 @@ class CerebrasClient:
         )
 
         # 요청 하나 안에서만 HTTP 클라이언트를 사용해 연결과 타임아웃 설정을 명확히 한다.
+        # 재시도는 같은 client를 재사용해 불필요한 연결 생성을 줄인다.
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             for attempt in range(max_attempts):
                 try:
@@ -102,7 +132,13 @@ class CerebrasClient:
                     )
 
                     if response.status_code >= 400:
-                        if self._can_retry(attempt, max_attempts) and response.status_code in RETRYABLE_STATUS_CODES:
+                        # 제공자가 오류 JSON을 보냈더라도 성공 응답 스키마로 파싱하지 않는다.
+                        # 일시적 상태 코드만 다음 반복으로 넘기고, 나머지는 즉시 안정적 오류로
+                        # 변환해 Spring이 잘못된 요청을 불필요하게 재시도하지 않게 한다.
+                        if (
+                            self._can_retry(attempt, max_attempts)
+                            and response.status_code in RETRYABLE_STATUS_CODES
+                        ):
                             logger.warning(
                                 "llm_retry request_id=%s reason=http_%s attempt=%s",
                                 request_id,
@@ -113,11 +149,14 @@ class CerebrasClient:
                         raise self._provider_error(response.status_code)
 
                     try:
+                        # response_format이 있어도 제공자가 빈 content·잘린 JSON을 반환할 수
+                        # 있으므로 HTTP 성공 이후에도 구조와 Pydantic 제약을 다시 검증한다.
                         body = response.json()
                         result = self._parse_result(body)
                     except _TruncatedResponse:
                         if self._can_retry(attempt, max_attempts):
-                            # 잘린 응답은 한 번 더 넉넉한 토큰 예산으로 재시도한다.
+                            # 잘린 응답은 같은 프롬프트를 더 큰 토큰 예산으로 한 번 재시도한다.
+                            # 무조건 큰 기본값을 쓰는 것보다 평소 지연시간·비용을 낮출 수 있다.
                             completion_tokens = max(
                                 completion_tokens,
                                 self.settings.length_retry_completion_tokens,
@@ -134,7 +173,11 @@ class CerebrasClient:
                             "LLM_TRUNCATED",
                             "Cerebras 응답이 토큰 제한으로 잘렸습니다.",
                         )
-                    except (ValidationError, json.JSONDecodeError, _ResponseParseError) as exc:
+                    except (
+                        ValidationError,
+                        json.JSONDecodeError,
+                        _ResponseParseError,
+                    ) as exc:
                         if self._can_retry(attempt, max_attempts):
                             logger.warning(
                                 "llm_retry request_id=%s reason=parse attempt=%s",
@@ -148,6 +191,8 @@ class CerebrasClient:
                             "Cerebras 응답이 출력 형식과 일치하지 않습니다.",
                         ) from exc
 
+                    # usage는 제공자 버전에 따라 생략될 수 있으므로, 로깅 실패가 생성
+                    # 성공을 뒤집지 않게 아래 helper로 안전하게 꺼낸다.
                     elapsed_ms = round((time.perf_counter() - started) * 1000)
                     usage = body.get("usage") if isinstance(body, dict) else None
                     logger.info(
@@ -164,6 +209,7 @@ class CerebrasClient:
                     # 이미 의미 있는 HTTP 오류로 변환된 경우에는 상위 계층으로 그대로 전달한다.
                     raise
                 except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                    # DNS 실패·소켓 연결 실패·읽기 타임아웃은 같은 복구 정책을 적용한다.
                     if self._can_retry(attempt, max_attempts):
                         logger.warning(
                             "llm_retry request_id=%s reason=network attempt=%s",
@@ -193,7 +239,9 @@ class CerebrasClient:
                     ) from exc
 
         # 반복문에서 항상 반환·예외가 발생하지만, 타입 검사와 방어적 처리를 위해 남겨 둔다.
-        raise api_error(502, "CEREBRAS_UNAVAILABLE", "Cerebras 요청을 완료하지 못했습니다.")
+        raise api_error(
+            502, "CEREBRAS_UNAVAILABLE", "Cerebras 요청을 완료하지 못했습니다."
+        )
 
     def _build_payload(
         self,
@@ -201,7 +249,12 @@ class CerebrasClient:
         user_prompt: str,
         completion_tokens: int,
     ) -> dict[str, Any]:
-        """Cerebras OpenAI 호환 API가 요구하는 비스트리밍 JSON 요청 본문을 만든다."""
+        """Cerebras OpenAI 호환 API가 요구하는 비스트리밍 JSON 요청 본문을 만든다.
+
+        ``stream=False``로 두는 이유는 Spring이 부분 토큰이 아닌 하나의 검증된 도메인
+        결과를 저장하기 때문이다. ``strict=True``는 응답에 정의되지 않은 필드가 섞이는
+        일을 줄이고, 최종적으로 Pydantic 검증을 한 번 더 거친다.
+        """
         return {
             "model": self.settings.cerebras_model,
             "messages": [
@@ -224,7 +277,11 @@ class CerebrasClient:
 
     @staticmethod
     def _parse_result(body: Any) -> ExcuseResult:
-        """Chat Completions 응답의 첫 선택지를 꺼내 Pydantic 모델로 최종 검증한다."""
+        """Chat Completions 응답의 첫 선택지를 꺼내 Pydantic 모델로 최종 검증한다.
+
+        제공자 JSON은 신뢰 경계 밖의 데이터다. choices/message/content의 타입을 모두
+        확인한 뒤에만 JSON 문자열을 파싱하고, 최종 결과를 ``ExcuseResult``로 검증한다.
+        """
         if not isinstance(body, dict):
             raise _ResponseParseError("provider response is not an object")
 
@@ -236,13 +293,19 @@ class CerebrasClient:
         if not isinstance(choice, dict):
             raise _ResponseParseError("provider choice is not an object")
         if choice.get("finish_reason") == "length":
+            # content가 우연히 유효한 JSON처럼 보여도 완전한 응답이 아닐 수 있으므로
+            # 우선 토큰 예산 재시도 경로로 보낸다.
             raise _TruncatedResponse()
 
         message = choice.get("message")
         if not isinstance(message, dict):
             raise _ResponseParseError("provider message is not an object")
         if message.get("refusal"):
-            raise api_error(422, "CEREBRAS_REFUSAL", "Cerebras가 요청을 처리하지 않았습니다.")
+            # 제공자의 안전성 거절은 동일한 요청 재시도로 해결되지 않으므로 즉시 422로
+            # 변환한다. 원본 refusal 내용은 외부에 그대로 전달하지 않는다.
+            raise api_error(
+                422, "CEREBRAS_REFUSAL", "Cerebras가 요청을 처리하지 않았습니다."
+            )
 
         content = message.get("content")
         if not isinstance(content, str) or not content.strip():
@@ -260,7 +323,12 @@ class CerebrasClient:
 
     @staticmethod
     def _provider_error(status_code: int) -> HTTPException:
-        """Cerebras 상태 코드를 Spring이 처리하기 쉬운 안정적인 오류 코드로 변환한다."""
+        """Cerebras 상태 코드를 Spring이 처리하기 쉬운 안정적인 오류 코드로 변환한다.
+
+        Spring은 공급자 HTTP 세부 상태에 의존하지 않고 ``code`` 기준으로 재시도와
+        사용자 안내를 선택할 수 있다. 키·결제 오류는 운영자가 조치해야 하므로 각각
+        구분해 반환한다.
+        """
         if status_code in {401, 403}:
             return api_error(
                 503,
@@ -293,5 +361,9 @@ class CerebrasClient:
 
     @staticmethod
     def _can_retry(attempt: int, max_attempts: int) -> bool:
-        """현재 시도가 마지막 시도가 아닌지 읽기 쉬운 이름으로 표현한다."""
+        """현재 시도가 마지막 시도가 아닌지 읽기 쉬운 이름으로 표현한다.
+
+        attempt는 0부터 시작하므로 ``attempt + 1 < max_attempts``일 때만 다음 요청을
+        보낼 수 있다.
+        """
         return attempt + 1 < max_attempts

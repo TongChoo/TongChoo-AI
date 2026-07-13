@@ -37,6 +37,20 @@ The default generation policy is:
 - `reasoning_effort=low`
 - `memory` maximum 12,000 characters
 
+### REPLY quality gate
+
+For `REPLY`, the server verifies that the generated `excuse` is substantive,
+responds to `incomingMessage`, and is not at least 70% similar to a previous
+assistant reply in the supplied conversation. It also requires exactly three
+distinct `replyOptions`: a short direct reply, a polite responsibility-and-action
+reply, and a lighter relationship-repair reply.
+
+When a result fails these checks, FastAPI regenerates it once with the rejected
+wording supplied as negative context. If the replacement still fails, it returns
+HTTP 422 with `REPLY_QUALITY_REPEATED` or `REPLY_QUALITY_FAILED`. Spring should
+send the current conversation branch on every REPLY call so prior answers can be
+compared.
+
 ## Internal API
 
 Spring should call one of these endpoints:
