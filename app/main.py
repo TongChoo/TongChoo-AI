@@ -138,12 +138,27 @@ async def _generate_response(
         request.tone.value,
         request.roundNumber,
     )
+    # REPLY 반복 문제는 AI 모델보다 Spring이 보낸 현재 변명·대화 가지가 오래된 경우에
+    # 자주 발생한다. 민감한 원문 전체를 남기지 않고, 실제 수신 문맥의 발췌와 turn 수만
+    # 기록하면 요청 ID 하나로 Spring 로그와 안전하게 대조할 수 있다.
+    previous_assistant = next(
+        (
+            turn.message
+            for turn in reversed(request.conversation)
+            if turn.role.value == "assistant"
+        ),
+        "",
+    )
     logger.info(
-        "ai_generation_context request_id=%s mode=%s round=%s incomingMessage=%s",
+        "ai_generation_context request_id=%s mode=%s round=%s turns=%s "
+        "incomingMessage=%s currentExcuse=%s previousAssistant=%s",
         request_id,
         request.mode.value,
         request.roundNumber,
+        len(request.conversation),
         (request.incomingMessage or "")[:120].replace("\n", " "),
+        (request.currentExcuse or "")[:120].replace("\n", " "),
+        previous_assistant[:120].replace("\n", " "),
     )
     return await service.generate_for_spring(request, request_id)
 

@@ -109,8 +109,10 @@ only at `/internal/v1/excuses/generate/raw` for diagnostics.
 `conversation` is the current branch selected by Spring and accepts up to 10
 turns. `roundNumber` accepts 1~5 because the service limits reply preparation
 to five rounds.
-The Spring-facing response matches the Java client contract: `excuse`, score
-fields, `suspicionLevel`, `riskFactors`, `rememberItems`, and `aftermaths`.
+The Spring-facing response matches the Java client contract: `excuse`,
+`replyOptions`, score fields, `suspicionLevel`, `riskFactors`,
+`rememberItems`, and `aftermaths`. `replyOptions` keeps the generated order:
+short/direct, polite/responsible, then light relationship-repair wording.
 IDs, parent IDs, XP, complexity warnings, and timestamps remain Spring-owned
 fields.
 

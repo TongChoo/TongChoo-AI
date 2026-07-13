@@ -272,6 +272,21 @@ class SpringContextRequest(BaseModel):
     target: Target
     tone: Tone
     memory: Annotated[str, Field(default="", max_length=12000)]
+    # Spring은 DB에서 선택한 현재 가지의 문맥을 이 필드들로 전달한다. 전용
+    # create/evolve/reply DTO가 모두 이 공통 기반 모델을 쓰므로, 여기서 선언해야
+    # FastAPI가 `extra=forbid`로 정상적인 REPLY 문맥을 거부하지 않는다.
+    rootExcuse: Annotated[
+        str | None, Field(default=None, min_length=1, max_length=1000)
+    ]
+    conversation: Annotated[
+        list[ConversationTurn], Field(default_factory=list, max_length=10)
+    ]
+    currentExcuse: Annotated[
+        str | None, Field(default=None, min_length=1, max_length=1000)
+    ]
+    # Spring의 `ReplyRequest`는 다음 답장을 만들 라운드 번호를 이미 증가시켜 보낸다.
+    # GenerateRequest와 같은 1~5 범위를 적용해 두 API 계약이 달라지지 않게 한다.
+    roundNumber: Annotated[int | None, Field(default=None, ge=1, le=5)]
 
     def to_generate_request(
         self,
@@ -401,6 +416,10 @@ class SpringExcuseResponse(BaseModel):
     realism: Annotated[int, Field(ge=1, le=5)]
     persuasion: Annotated[int, Field(ge=1, le=5)]
     suspicionLevel: SuspicionLevel
+    # REPLY UI는 세 후보의 순서 자체에 의미가 있다. Spring이 Item으로 재구성하면
+    # 복사해 보낼 문장 API가 불필요하게 복잡해지므로, 생성 순서를 유지한 문자열 목록을
+    # 그대로 전달한다.
+    replyOptions: Annotated[list[str], Field(min_length=2, max_length=3)]
     riskFactors: Annotated[list[SpringItem], Field(max_length=5)]
     rememberItems: Annotated[list[SpringItem], Field(max_length=8)]
     aftermaths: Annotated[list[SpringAftermath], Field(max_length=4)]
@@ -418,6 +437,7 @@ class SpringExcuseResponse(BaseModel):
             realism=result.realism,
             persuasion=result.persuasion,
             suspicionLevel=result.suspicionLevel,
+            replyOptions=result.replyOptions,
             riskFactors=[
                 SpringItem(content=item, sortOrder=index)
                 for index, item in enumerate(result.riskFactors)
