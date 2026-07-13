@@ -42,7 +42,7 @@ class _ResponseParseError(Exception):
     """제공자 응답이 기대한 Chat Completions JSON 구조가 아닐 때 사용하는 내부 예외.
 
     이 예외는 외부 API로 노출하지 않고 ``generate``에서 제한 재시도 또는
-    ``LLM_PARSE_ERROR``로 변환한다.
+    응답 본문이 있으면 가능한 범위에서 보완하고, 빈 응답만 오류로 처리한다.
     """
 
 
@@ -185,11 +185,14 @@ class CerebrasClient:
                                 attempt + 1,
                             )
                             continue
-                        raise api_error(
-                            422,
-                            "LLM_PARSE_ERROR",
-                            "Cerebras 응답이 출력 형식과 일치하지 않습니다.",
-                        ) from exc
+                        # 부가 필드 검증이 실패해도 응답 본문이 있으면 버리지 않는다.
+                        # 최종적으로 excuse만 보존하고 나머지는 기본값으로 채운다.
+                        logger.warning(
+                            "llm_best_effort_parse request_id=%s error=%s",
+                            request_id,
+                            type(exc).__name__,
+                        )
+                        result = self._fallback_result(body)
 
                     # usage는 제공자 버전에 따라 생략될 수 있으므로, 로깅 실패가 생성
                     # 성공을 뒤집지 않게 아래 helper로 안전하게 꺼낸다.
@@ -265,19 +268,14 @@ class CerebrasClient:
             "max_completion_tokens": completion_tokens,
             "stream": False,
             "reasoning_effort": self.settings.reasoning_effort,
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "tongchoo_excuse_v1",
-                    "strict": True,
-                    "schema": LLM_RESULT_SCHEMA,
-                },
-            },
+            # 제공자마다 strict json_schema 지원 수준이 달라, 답변 본문이 있는데도
+            # 부가 필드 하나 때문에 전체 결과가 거절되지 않도록 JSON object만 요구한다.
+            "response_format": {"type": "json_object"},
         }
 
     @staticmethod
     def _parse_result(body: Any) -> ExcuseResult:
-        """Chat Completions 응답의 첫 선택지를 꺼내 Pydantic 모델로 최종 검증한다.
+        """응답 본문을 읽고 답변이 있으면 부가 필드를 기본값으로 보완한다.
 
         제공자 JSON은 신뢰 경계 밖의 데이터다. choices/message/content의 타입을 모두
         확인한 뒤에만 JSON 문자열을 파싱하고, 최종 결과를 ``ExcuseResult``로 검증한다.
@@ -308,10 +306,132 @@ class CerebrasClient:
             )
 
         content = message.get("content")
-        if not isinstance(content, str) or not content.strip():
+        if isinstance(content, dict):
+            payload = content
+            raw_content = json.dumps(content, ensure_ascii=False)
+        elif isinstance(content, str) and content.strip():
+            raw_content = content.strip()
+            try:
+                payload = json.loads(raw_content)
+            except json.JSONDecodeError:
+                # JSON이 아닌 일반 답변도 버리지 않고 그대로 저장한다.
+                payload = {"excuse": raw_content}
+        else:
             raise _ResponseParseError("provider content is empty")
 
-        return ExcuseResult.model_validate(json.loads(content))
+        if not isinstance(payload, dict):
+            payload = {"excuse": raw_content}
+
+        excuse = (
+            CerebrasClient._first_text(
+                payload, "excuse", "answer", "text", "message"
+            )
+            or raw_content
+        )[:1000]
+        options = payload.get("replyOptions") or payload.get("reply_options")
+        if not isinstance(options, list):
+            options = [excuse, excuse]
+        options = [str(item).strip()[:200] for item in options if str(item).strip()]
+        while len(options) < 2:
+            options.append(excuse)
+
+        normalized = {
+            "excuse": excuse,
+            "recommendedAction": (
+                CerebrasClient._first_text(
+                    payload, "recommendedAction", "recommended_action"
+                )
+                or "상대에게 현재 상황을 짧게 설명하고 바로 확인한다."
+            )[:300],
+            "likelyFollowUp": (
+                CerebrasClient._first_text(
+                    payload, "likelyFollowUp", "likely_follow_up"
+                )
+                or "그래서 지금 어떻게 할 건데?"
+            )[:300],
+            "replyOptions": options[:3],
+            "successRate": CerebrasClient._bounded_int(payload.get("successRate", payload.get("success_rate", 50)), 0, 100, 50),
+            "realism": CerebrasClient._bounded_int(payload.get("realism", 3), 1, 5, 3),
+            "persuasion": CerebrasClient._bounded_int(payload.get("persuasion", 3), 1, 5, 3),
+            "suspicionLevel": payload.get("suspicionLevel", payload.get("suspicion_level", "MEDIUM")) if payload.get("suspicionLevel", payload.get("suspicion_level", "MEDIUM")) in {"LOW", "MEDIUM", "HIGH"} else "MEDIUM",
+            "riskFactors": CerebrasClient._string_list(payload.get("riskFactors", payload.get("risk_factors")), ["추가 확인이 필요함"]),
+            "aftermath": CerebrasClient._aftermath_list(payload.get("aftermath", payload.get("aftermaths"))),
+            "remember": CerebrasClient._string_list(payload.get("remember"), []),
+        }
+        return ExcuseResult.model_validate(normalized)
+
+    @staticmethod
+    def _fallback_result(body: Any) -> ExcuseResult:
+        """구조가 깨진 응답에서도 본문을 저장할 수 있도록 최소 결과를 만든다."""
+        content = "응답을 확인했습니다."
+        try:
+            content = body["choices"][0]["message"].get("content") or content
+        except (KeyError, IndexError, AttributeError, TypeError):
+            pass
+        if not isinstance(content, str):
+            content = json.dumps(content, ensure_ascii=False)
+        excuse = content.strip()[:1000] or "응답을 확인했습니다."
+        return ExcuseResult(
+            excuse=excuse,
+            recommendedAction="상대에게 현재 상황을 짧게 설명하고 바로 확인한다.",
+            likelyFollowUp="그래서 지금 어떻게 할 건데?",
+            replyOptions=[excuse, excuse],
+            successRate=50,
+            realism=3,
+            persuasion=3,
+            suspicionLevel="MEDIUM",
+            riskFactors=["추가 확인이 필요함"],
+            aftermath=[{
+                "when": "오늘",
+                "dayOffset": 0,
+                "question": "상대가 추가로 확인할 수 있음",
+                "collapseRate": 50,
+            }],
+            remember=[],
+        )
+
+    @staticmethod
+    def _first_text(payload: dict[str, Any], *keys: str) -> str | None:
+        for key in keys:
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return None
+
+    @staticmethod
+    def _bounded_int(value: Any, minimum: int, maximum: int, fallback: int) -> int:
+        try:
+            return max(minimum, min(maximum, int(value)))
+        except (TypeError, ValueError):
+            return fallback
+
+    @staticmethod
+    def _string_list(value: Any, fallback: list[str]) -> list[str]:
+        if not isinstance(value, list):
+            return fallback
+        values = [item.strip()[:200] for item in value if isinstance(item, str) and item.strip()]
+        return values[:8] or fallback
+
+    @staticmethod
+    def _aftermath_list(value: Any) -> list[dict[str, Any]]:
+        if not isinstance(value, list) or not value:
+            return [{
+                "when": "오늘",
+                "dayOffset": 0,
+                "question": "상대가 추가로 확인할 수 있음",
+                "collapseRate": 50,
+            }]
+        results = []
+        for item in value[:4]:
+            if not isinstance(item, dict):
+                continue
+            results.append({
+                "when": str(item.get("when", item.get("whenLabel", "오늘")))[:100],
+                "dayOffset": CerebrasClient._bounded_int(item.get("dayOffset", item.get("day_offset", 0)), 0, 365, 0),
+                "question": str(item.get("question", "상대가 추가로 확인할 수 있음"))[:300],
+                "collapseRate": CerebrasClient._bounded_int(item.get("collapseRate", item.get("collapse_rate", 50)), 0, 100, 50),
+            })
+        return results or CerebrasClient._aftermath_list(None)
 
     @staticmethod
     def _usage_value(usage: Any, key: str) -> int | None:

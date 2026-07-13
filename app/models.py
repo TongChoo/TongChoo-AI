@@ -150,7 +150,8 @@ class ExcuseResult(BaseModel):
 
     # excuse는 사용자가 바로 복사해 보낼 기본안이다. 추천 행동·예상 질문·후보 답장은
     # 서비스가 품질을 설명하거나 다음 상호작용을 준비하는 데 쓰는 보조 결과다.
-    excuse: Annotated[str, Field(min_length=20, max_length=1000)]
+    # 답변 본문이 짧아도 부가 분석 실패로 전체 요청을 버리지 않는다.
+    excuse: Annotated[str, Field(min_length=1, max_length=1000)]
     recommendedAction: Annotated[str, Field(min_length=1, max_length=300)]
     likelyFollowUp: Annotated[str, Field(min_length=1, max_length=300)]
     replyOptions: Annotated[list[str], Field(min_length=2, max_length=3)]
@@ -411,7 +412,7 @@ class SpringExcuseResponse(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    excuse: Annotated[str, Field(min_length=20, max_length=1000)]
+    excuse: Annotated[str, Field(min_length=1, max_length=1000)]
     successRate: Annotated[int, Field(ge=0, le=100)]
     realism: Annotated[int, Field(ge=1, le=5)]
     persuasion: Annotated[int, Field(ge=1, le=5)]
