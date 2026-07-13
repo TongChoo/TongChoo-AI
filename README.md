@@ -44,6 +44,38 @@ The default generation policy is:
 - `reasoning_effort=low`
 - `memory` maximum 12,000 characters
 
+### Situation-aware CREATE/REPLY
+
+Before CREATE generation, FastAPI classifies the original situation as `LIGHT`,
+`NORMAL`, or `SERIOUS` with a separate Structured Output call. Classification
+uses a low temperature of `0.1` by default and considers actual impact, recovery
+difficulty, relationship formality, accountability, next action, and whether
+humor is safe. Ambiguous situations default to `NORMAL`.
+
+The resulting `SituationProfile` supplies sentence and character ranges to both
+the prompt and a local quality gate:
+
+- `LIGHT`: 1–2 sentences, 20–100 characters
+- `NORMAL`: 2–3 sentences, 60–180 characters
+- `SERIOUS`: 3–5 sentences, 120–350 characters
+
+Spring stores the CREATE response's `situationSeverity` on the conversation.
+Every REPLY sends that persisted value back, so FastAPI skips classification and
+cannot downgrade a serious conversation based on the latest short message. REPLY
+then permits a shorter response. A result that misses its range or
+required next action is regenerated once by
+default with specific correction reasons. If both valid JSON candidates still
+miss some quality rules, the higher-scoring non-empty result is returned rather
+than failing the whole CREATE request.
+
+Configure this flow with `CLASSIFICATION_TEMPERATURE` and
+`SITUATION_QUALITY_MAX_ATTEMPTS`.
+
+The reproducible real-provider benchmark, fixed 21-case dataset, and latest
+result are available in [`evals/`](./evals/README.md). The service also removes
+unsupported generated time promises and rejects candidates that invent a cause
+or claim a concrete impact absent from the input.
+
 ### REPLY quality gate
 
 For `REPLY`, the server compares the generated main answer and candidates with
@@ -65,8 +97,9 @@ time, evidence, promise, or contradiction in the generated `excuse`. Generic
 work follow-ups such as asking for the meeting agenda or the next schedule are
 rejected. CREATE regenerates an invalid aftermath up to
 `AFTERMATH_QUALITY_MAX_ATTEMPTS`; REPLY applies the same aftermath validation as
-part of its reply quality gate. Final CREATE failure returns HTTP 422 with
-`AFTERMATH_QUALITY_REJECTED`.
+part of its reply quality gate. CREATE returns the higher-scoring grounded
+candidate when only non-critical structure rules remain; if every candidate
+adds unsupported facts, it returns HTTP 422 with `GROUNDING_QUALITY_REJECTED`.
 
 ## Internal API
 
@@ -98,6 +131,7 @@ only at `/internal/v1/excuses/generate/raw` for diagnostics.
   "situation": "팀 회의에 20분 늦었다",
   "target": "TEAM_LEAD",
   "tone": "MILD",
+  "situationSeverity": "NORMAL",
   "rootExcuse": "회의 시작 시간을 잘못 봤어요.",
   "currentExcuse": "회의 시작 시간을 잘못 봐서 20분 늦었어요.",
   "incomingMessage": "그래도 왜 미리 말하지 않았어요?",
@@ -113,7 +147,7 @@ only at `/internal/v1/excuses/generate/raw` for diagnostics.
 turns. `roundNumber` accepts 1~5 because the service limits reply preparation
 to five rounds.
 The Spring-facing response matches the Java client contract: `excuse`,
-`replyOptions`, score fields, `suspicionLevel`, `riskFactors`,
+`replyOptions`, score fields, `suspicionLevel`, `situationSeverity`, `riskFactors`,
 `rememberItems`, and `aftermaths`. `replyOptions` keeps the generated order:
 short/direct, polite/responsible, then light relationship-repair wording.
 IDs, reply lineage, XP, complexity warnings, and timestamps remain Spring-owned

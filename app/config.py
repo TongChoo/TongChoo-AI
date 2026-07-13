@@ -62,6 +62,12 @@ class Settings(BaseSettings):
         le=3,
         alias="AFTERMATH_QUALITY_MAX_ATTEMPTS",
     )
+    situation_quality_max_attempts: int = Field(
+        default=2,
+        ge=1,
+        le=3,
+        alias="SITUATION_QUALITY_MAX_ATTEMPTS",
+    )
     reply_similarity_threshold: float = Field(
         default=0.9,
         ge=0.7,
@@ -81,6 +87,12 @@ class Settings(BaseSettings):
     # temperature는 같은 문맥의 표현 다양성을 조절한다. 너무 낮으면 REPLY가 반복되기
     # 쉽고, 너무 높으면 사실 일관성이 떨어질 수 있어 기본값을 중간 수준으로 둔다.
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, alias="LLM_TEMPERATURE")
+    classification_temperature: float = Field(
+        default=0.1,
+        ge=0.0,
+        le=1.0,
+        alias="CLASSIFICATION_TEMPERATURE",
+    )
     reasoning_effort: str = Field(default="low", alias="CEREBRAS_REASONING_EFFORT")
     # Spring이 전달한 과거 메모리는 프롬프트에 넣기 전에 이 길이로 제한한다. 대화
     # 문맥보다 오래된 메모리가 토큰 대부분을 차지하는 일을 막기 위한 상한이다.

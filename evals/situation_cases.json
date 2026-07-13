@@ -1,0 +1,25 @@
+[
+  {"id":"light_game_nap","expectedSeverity":"LIGHT","situation":"친구랑 게임하기로 했는데 낮잠 자서 10분 늦었다","target":"FRIEND","tone":"BULLSHIT"},
+  {"id":"light_forgot_coffee","expectedSeverity":"LIGHT","situation":"친구에게 오는 길에 커피를 사다 주기로 했는데 깜빡했다","target":"FRIEND","tone":"SLICK"},
+  {"id":"light_forgot_meme","expectedSeverity":"LIGHT","situation":"연인에게 재미있는 밈을 보내주기로 했는데 잊었다","target":"LOVER","tone":"MILD"},
+  {"id":"light_teamlead_lunch","expectedSeverity":"LIGHT","situation":"팀장님과 점심 약속 장소에 5분 늦게 도착했다","target":"TEAM_LEAD","tone":"MILD"},
+  {"id":"light_parent_call","expectedSeverity":"LIGHT","situation":"집에 도착하면 전화하겠다고 했는데 15분 뒤에 생각났다","target":"PARENT","tone":"MILD"},
+  {"id":"light_friend_movie","expectedSeverity":"LIGHT","situation":"친구와 온라인으로 영화를 같이 보기로 했는데 시작 시간을 10분 착각했다","target":"FRIEND","tone":"SLICK"},
+  {"id":"light_lover_snack","expectedSeverity":"LIGHT","situation":"연인이 부탁한 과자를 편의점에서 사 오는 걸 깜빡했다","target":"LOVER","tone":"BULLSHIT"},
+
+  {"id":"normal_club_meeting","expectedSeverity":"NORMAL","situation":"동아리 회의 시간을 착각해서 30분 늦었다","target":"TEAM_MEMBER","tone":"MILD"},
+  {"id":"normal_assignment_late","expectedSeverity":"NORMAL","situation":"과제 제출 시간을 잘못 확인해서 마감보다 조금 늦게 제출했다","target":"TEACHER","tone":"DESPERATE"},
+  {"id":"normal_team_material","expectedSeverity":"NORMAL","situation":"팀원에게 회의 전 전달하기로 한 참고 자료 공유가 늦어졌다","target":"TEAM_MEMBER","tone":"MILD"},
+  {"id":"normal_study_reservation","expectedSeverity":"NORMAL","situation":"스터디 모임 장소 예약을 늦게 해서 원래 원하던 시간대를 잡지 못했다","target":"CUSTOM","targetDescription":"같은 취업 스터디 팀원","tone":"MILD"},
+  {"id":"normal_teacher_consult","expectedSeverity":"NORMAL","situation":"교수님과 잡은 상담 시간을 착각해서 약속보다 20분 늦었다","target":"TEACHER","tone":"MILD"},
+  {"id":"normal_team_draft","expectedSeverity":"NORMAL","situation":"팀장님에게 오전에 보여드리기로 한 기획서 초안 공유가 오후로 늦어졌다","target":"TEAM_LEAD","tone":"SLICK"},
+  {"id":"normal_lover_event","expectedSeverity":"NORMAL","situation":"연인과 함께 준비하기로 한 가족 행사 준비물을 제때 확인하지 않아 일정이 조금 밀렸다","target":"LOVER","tone":"DESPERATE"},
+
+  {"id":"serious_client_deck","expectedSeverity":"SERIOUS","situation":"고객사에 전달할 최종 발표자료를 마감까지 제출하지 못했다","target":"TEAM_LEAD","tone":"MILD"},
+  {"id":"serious_production_deploy","expectedSeverity":"SERIOUS","situation":"회사 서비스 배포 과정에서 필수 데이터 백업 작업을 누락했다","target":"TEAM_LEAD","tone":"BULLSHIT"},
+  {"id":"serious_interview","expectedSeverity":"SERIOUS","situation":"중요한 최종 면접 일정을 완전히 잊어서 참석하지 못했다","target":"CUSTOM","targetDescription":"채용 담당자","tone":"DESPERATE"},
+  {"id":"serious_friend_loss","expectedSeverity":"SERIOUS","situation":"친구가 꼭 처리해달라고 맡긴 결제 취소 요청을 잊어서 친구에게 큰 금전 손해가 발생했다","target":"FRIEND","tone":"MILD"},
+  {"id":"serious_safety_check","expectedSeverity":"SERIOUS","situation":"행사 시작 전 반드시 해야 하는 안전 장비 점검을 누락한 채 행사를 진행했다","target":"TEAM_LEAD","tone":"MILD"},
+  {"id":"serious_customer_data","expectedSeverity":"SERIOUS","situation":"고객에게 보내면 안 되는 내부 정보가 포함된 파일을 실수로 전달했다","target":"TEAM_LEAD","tone":"SLICK"},
+  {"id":"serious_team_deadline","expectedSeverity":"SERIOUS","situation":"내 작업을 마감하지 못해서 다른 팀원들의 최종 제출 작업까지 모두 막힌 상태다","target":"TEAM_MEMBER","tone":"BULLSHIT"}
+]

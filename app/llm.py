@@ -16,7 +16,13 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from app.config import Settings
-from app.models import ExcuseResult, LLM_RESULT_SCHEMA
+from app.models import (
+    ExcuseResult,
+    LLM_RESULT_SCHEMA,
+    SITUATION_PROFILE_SCHEMA,
+    SituationProfile,
+    SituationSeverity,
+)
 
 logger = logging.getLogger("tongchoo.ai")
 
@@ -246,6 +252,84 @@ class CerebrasClient:
             502, "CEREBRAS_UNAVAILABLE", "Cerebras 요청을 완료하지 못했습니다."
         )
 
+    async def classify_situation(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        request_id: str,
+    ) -> SituationProfile:
+        """낮은 temperature와 전용 스키마로 상황을 분류한다.
+
+        분류 JSON 형식이 끝까지 불안정하면 위험한 상황을 LIGHT로 낮추지 않도록
+        안전한 NORMAL 프로필을 사용한다. 네트워크·인증 오류는 생성 호출과 동일하게
+        외부 오류로 전달한다.
+        """
+        headers = {
+            "Authorization": f"Bearer {self.settings.cerebras_api_key}",
+            "Content-Type": "application/json",
+        }
+        max_attempts = max(1, self.settings.max_attempts)
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            for attempt in range(max_attempts):
+                try:
+                    response = await client.post(
+                        self.endpoint,
+                        headers=headers,
+                        json=self._build_classification_payload(
+                            system_prompt,
+                            user_prompt,
+                        ),
+                    )
+                    if response.status_code >= 400:
+                        if (
+                            self._can_retry(attempt, max_attempts)
+                            and response.status_code in RETRYABLE_STATUS_CODES
+                        ):
+                            continue
+                        raise self._provider_error(response.status_code)
+
+                    try:
+                        payload = self._extract_json_payload(response.json())
+                        profile = SituationProfile.model_validate(payload)
+                        return self._normalize_profile_ranges(profile)
+                    except (
+                        ValidationError,
+                        json.JSONDecodeError,
+                        _ResponseParseError,
+                        _TruncatedResponse,
+                    ):
+                        if self._can_retry(attempt, max_attempts):
+                            logger.warning(
+                                "classification_retry request_id=%s attempt=%s",
+                                request_id,
+                                attempt + 1,
+                            )
+                            continue
+                        logger.warning(
+                            "classification_fallback request_id=%s severity=NORMAL",
+                            request_id,
+                        )
+                        return self._normal_profile()
+                except HTTPException:
+                    raise
+                except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                    if self._can_retry(attempt, max_attempts):
+                        continue
+                    raise api_error(
+                        503,
+                        "CEREBRAS_CONNECTION_ERROR",
+                        "Cerebras에 연결할 수 없습니다.",
+                    ) from exc
+                except httpx.HTTPError as exc:
+                    raise api_error(
+                        503,
+                        "CEREBRAS_CONNECTION_ERROR",
+                        "Cerebras 요청을 완료하지 못했습니다.",
+                    ) from exc
+
+        return self._normal_profile()
+
     def _build_payload(
         self,
         system_prompt: str,
@@ -277,6 +361,98 @@ class CerebrasClient:
                 },
             },
         }
+
+    def _build_classification_payload(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+    ) -> dict[str, Any]:
+        """생성 호출과 분리된 상황 분류 요청 본문을 만든다."""
+        return {
+            "model": self.settings.cerebras_model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": self.settings.classification_temperature,
+            "max_completion_tokens": 500,
+            "stream": False,
+            "reasoning_effort": self.settings.reasoning_effort,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "tongchoo_situation_profile_v1",
+                    "strict": True,
+                    "schema": SITUATION_PROFILE_SCHEMA,
+                },
+            },
+        }
+
+    @staticmethod
+    def _extract_json_payload(body: Any) -> dict[str, Any]:
+        """Structured Output 응답에서 JSON 객체만 안전하게 꺼낸다."""
+        if not isinstance(body, dict):
+            raise _ResponseParseError("provider response is not an object")
+        choices = body.get("choices")
+        if not isinstance(choices, list) or not choices:
+            raise _ResponseParseError("provider response has no choices")
+        choice = choices[0]
+        if not isinstance(choice, dict):
+            raise _ResponseParseError("provider choice is not an object")
+        if choice.get("finish_reason") == "length":
+            raise _TruncatedResponse()
+        message = choice.get("message")
+        if not isinstance(message, dict):
+            raise _ResponseParseError("provider message is unavailable")
+        if message.get("refusal"):
+            raise api_error(
+                422,
+                "CEREBRAS_REFUSAL",
+                "Cerebras가 요청을 처리하지 않았습니다.",
+            )
+        content = message.get("content")
+        if isinstance(content, dict):
+            return content
+        if isinstance(content, str) and content.strip():
+            payload = json.loads(content)
+            if isinstance(payload, dict):
+                return payload
+        raise _ResponseParseError("provider content is not a JSON object")
+
+    @staticmethod
+    def _normalize_profile_ranges(profile: SituationProfile) -> SituationProfile:
+        """LLM 판단값은 보존하고 제품이 정한 길이·문장 범위는 고정한다."""
+        ranges = {
+            SituationSeverity.LIGHT: (1, 2, 20, 100),
+            SituationSeverity.NORMAL: (2, 3, 60, 180),
+            SituationSeverity.SERIOUS: (3, 5, 120, 350),
+        }
+        min_sentences, max_sentences, min_length, max_length = ranges[
+            profile.severity
+        ]
+        return profile.model_copy(
+            update={
+                "minSentences": min_sentences,
+                "maxSentences": max_sentences,
+                "minLength": min_length,
+                "maxLength": max_length,
+            }
+        )
+
+    @staticmethod
+    def _normal_profile() -> SituationProfile:
+        return SituationProfile(
+            severity=SituationSeverity.NORMAL,
+            formality="POLITE",
+            hasImpact=True,
+            needsAccountability=True,
+            needsNextAction=True,
+            humorAllowed=False,
+            minSentences=2,
+            maxSentences=3,
+            minLength=60,
+            maxLength=180,
+        )
 
     @staticmethod
     def _parse_result(body: Any) -> ExcuseResult:

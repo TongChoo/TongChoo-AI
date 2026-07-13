@@ -2,6 +2,7 @@
 
 from app.models import GenerateRequest, GenerationMode, Target, Tone
 from app.prompts import (
+    build_classification_prompt,
     build_reply_system_prompt,
     build_reply_user_prompt,
     build_system_prompt,
@@ -34,6 +35,7 @@ def test_reply_prompt_prioritizes_latest_message_and_human_tone() -> None:
         situation="팀 회의에 20분 늦었다",
         target=Target.TEAM_LEAD,
         tone=Tone.MILD,
+        situationSeverity="NORMAL",
         rootExcuse="회의 시작 시간을 잘못 봤습니다.",
         currentExcuse="미리 공유하지 못했습니다.",
         incomingMessage="왜 미리 연락하지 않았어요?",
@@ -67,3 +69,20 @@ def test_custom_target_description_is_included_as_relationship_context() -> None
 
     assert "CUSTOM" in user_prompt
     assert "같은 프로젝트를 진행하는 친한 선배" in user_prompt
+
+
+def test_classification_prompt_uses_impact_and_safe_normal_default() -> None:
+    request = GenerateRequest(
+        situation="고객사 최종 발표자료 제출을 놓쳤다",
+        target=Target.TEAM_LEAD,
+        tone=Tone.BULLSHIT,
+    )
+
+    prompt = build_classification_prompt(request)
+
+    assert "마감, 금전, 안전, 고객" in prompt
+    assert "팀장이나 선생님이라는 이유만으로 SERIOUS" in prompt
+    assert "판단이 애매하면 NORMAL" in prompt
+    assert "팀장과 점심 약속에 5분 늦었고" in prompt
+    assert "친구의 부탁을 잊어 실제 금전 손해" in prompt
+    assert "SERIOUS: 3~5문장, 120~350자" in prompt

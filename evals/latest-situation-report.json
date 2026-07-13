@@ -1,0 +1,946 @@
+{
+  "generatedAt": "2026-07-13T22:23:44.912080+00:00",
+  "model": "gpt-oss-120b",
+  "summary": {
+    "caseCount": 21,
+    "completedCount": 20,
+    "errorCount": 1,
+    "severityAccuracy": 0.952,
+    "fitPassRate": 1.0,
+    "groundingPassRate": 1.0,
+    "regenerationRate": 0.15,
+    "seriousHumorViolations": 0,
+    "seriousThreeSentenceRate": 1.0,
+    "lightAtMostTwoSentenceRate": 1.0,
+    "averageClassificationMs": 564,
+    "averageTotalMs": 1479,
+    "p95TotalMs": 2166,
+    "byExpectedSeverity": {
+      "LIGHT": {
+        "count": 7,
+        "matched": 7,
+        "accuracy": 1.0,
+        "regenerationRate": 0.286
+      },
+      "NORMAL": {
+        "count": 7,
+        "matched": 7,
+        "accuracy": 1.0,
+        "regenerationRate": 0.143
+      },
+      "SERIOUS": {
+        "count": 7,
+        "matched": 6,
+        "accuracy": 0.857,
+        "regenerationRate": 0.143
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "light_game_nap",
+      "expectedSeverity": "LIGHT",
+      "situation": "친구랑 게임하기로 했는데 낮잠 자서 10분 늦었다",
+      "target": "FRIEND",
+      "tone": "BULLSHIT",
+      "actualSeverity": "LIGHT",
+      "severityMatched": true,
+      "profile": {
+        "severity": "LIGHT",
+        "formality": "CASUAL",
+        "hasImpact": true,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": true,
+        "minSentences": 1,
+        "maxSentences": 2,
+        "minLength": 20,
+        "maxLength": 100
+      },
+      "excuse": "미안, 낮잠이라 10분 늦었어. 지금 바로 게임 시작할게!",
+      "length": 32,
+      "sentenceCount": 2,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 1,
+      "regenerated": false,
+      "classificationMs": 615,
+      "totalMs": 1444,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "미안, 낮잠이라 10분 늦었어. 지금 바로 게임 시작할게!",
+          "replyOptions": [
+            "미안, 낮잠 때문에 10분 늦었어. 바로 시작할게!",
+            "잠깐 눈들었는데 10분 늦었어. 지금 게임 시작할게!",
+            "잠깐 낮잠했더니 10분 늦었네. 바로 들어올게!"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "light_forgot_coffee",
+      "expectedSeverity": "LIGHT",
+      "situation": "친구에게 오는 길에 커피를 사다 주기로 했는데 깜빡했다",
+      "target": "FRIEND",
+      "tone": "SLICK",
+      "actualSeverity": "LIGHT",
+      "severityMatched": true,
+      "profile": {
+        "severity": "LIGHT",
+        "formality": "CASUAL",
+        "hasImpact": true,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": true,
+        "minSentences": 1,
+        "maxSentences": 2,
+        "minLength": 20,
+        "maxLength": 100
+      },
+      "excuse": "아, 커피 사다 주는 걸 깜빡했어— 지금 바로 사올게!",
+      "length": 30,
+      "sentenceCount": 1,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 1,
+      "regenerated": false,
+      "classificationMs": 1757,
+      "totalMs": 2654,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "아, 커피 사다 주는 걸 깜빡했어— 지금 바로 사올게!",
+          "replyOptions": [
+            "미안! 커피 사다 주는 거 잊었네, 지금 사올게",
+            "헉, 커피 챙기는 걸 깜빡했어… 바로 사다 줄게",
+            "죄송! 커피 놓쳤어요, 지금 바로 사다 드릴게요"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "light_forgot_meme",
+      "expectedSeverity": "LIGHT",
+      "situation": "연인에게 재미있는 밈을 보내주기로 했는데 잊었다",
+      "target": "LOVER",
+      "tone": "MILD",
+      "actualSeverity": "LIGHT",
+      "severityMatched": true,
+      "profile": {
+        "severity": "LIGHT",
+        "formality": "CASUAL",
+        "hasImpact": false,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": true,
+        "minSentences": 1,
+        "maxSentences": 2,
+        "minLength": 20,
+        "maxLength": 100
+      },
+      "excuse": "미안! 밈 보내는 걸 깜빡했어, 지금 바로 보내줄게 😅",
+      "length": 30,
+      "sentenceCount": 2,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 2,
+      "regenerated": true,
+      "classificationMs": 678,
+      "totalMs": 1851,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "아, 미안! 밈 보내는 걸 깜빡했네. 지금 바로 보내줄게 😂",
+          "replyOptions": [
+            "미안, 지금 바로 밈 보내줄게!",
+            "헷갈렸어, 금방 밈 올려줄게!",
+            "잠깐만, 바로 밈 전달할게!"
+          ]
+        },
+        {
+          "excuse": "미안! 오늘 밈 보내는 걸 깜빡했어, 지금 바로 보내줄게 😅",
+          "replyOptions": [
+            "미안! 오늘 밈 보내는 걸 깜빡했어, 지금 바로 보낼게 😅",
+            "아, 밈 보내는 거 놓쳤네 ㅜㅜ 바로 보내줄게!",
+            "헉, 밈 보내는 걸 잊었어 ㅠㅠ 지금 바로 공유할게!"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "light_teamlead_lunch",
+      "expectedSeverity": "LIGHT",
+      "situation": "팀장님과 점심 약속 장소에 5분 늦게 도착했다",
+      "target": "TEAM_LEAD",
+      "tone": "MILD",
+      "actualSeverity": "LIGHT",
+      "severityMatched": true,
+      "profile": {
+        "severity": "LIGHT",
+        "formality": "POLITE",
+        "hasImpact": false,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": true,
+        "minSentences": 1,
+        "maxSentences": 2,
+        "minLength": 20,
+        "maxLength": 100
+      },
+      "excuse": "죄송합니다, 5분 늦었어요. 지금 바로 도착해서 식사 시작하겠습니다.",
+      "length": 38,
+      "sentenceCount": 2,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 2,
+      "regenerated": true,
+      "classificationMs": 649,
+      "totalMs": 2074,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "죄송합니다, 교통이 조금 막혀서 5분 늦었습니다. 지금 바로 확인하고 곧 찾아뵙겠습니다.",
+          "replyOptions": [
+            "죄송합니다, 교통이 막혀서 5분 늦었습니다. 지금 바로 확인하고 바로 가겠습니다.",
+            "죄송해요, 차가 막혀서 5분 늦었습니다. 바로 확인 후 곧 뵙겠습니다.",
+            "죄송합니다, 교통 지연으로 5분 늦었어요. 지금 확인하고 바로 가겠습니다."
+          ]
+        },
+        {
+          "excuse": "죄송합니다, 5분 늦었어요. 지금 바로 도착해서 식사 시작하겠습니다.",
+          "replyOptions": [
+            "죄송해요, 5분 늦었습니다. 지금 바로 식사 시작하겠습니다.",
+            "죄송합니다, 조금 늦었네요. 바로 도착했으니 식사 시작해도 될까요?",
+            "죄송해요, 5분 지연됐어요. 바로 자리 잡고 식사하겠습니다."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "light_parent_call",
+      "expectedSeverity": "LIGHT",
+      "situation": "집에 도착하면 전화하겠다고 했는데 15분 뒤에 생각났다",
+      "target": "PARENT",
+      "tone": "MILD",
+      "actualSeverity": "LIGHT",
+      "severityMatched": true,
+      "profile": {
+        "severity": "LIGHT",
+        "formality": "POLITE",
+        "hasImpact": false,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": false,
+        "minSentences": 1,
+        "maxSentences": 2,
+        "minLength": 20,
+        "maxLength": 100
+      },
+      "excuse": "죄송합니다, 집에 도착했지만 바로 전화드리겠습니다.",
+      "length": 28,
+      "sentenceCount": 1,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 1,
+      "regenerated": false,
+      "classificationMs": 480,
+      "totalMs": 1017,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "죄송합니다, 집에 도착했지만 바로 전화드리겠습니다.",
+          "replyOptions": [
+            "죄송해요, 이제 곧 전화드릴게요.",
+            "죄송합니다, 지금 바로 전화 드리겠습니다.",
+            "죄송합니다, 바로 연락 드리겠습니다."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "light_friend_movie",
+      "expectedSeverity": "LIGHT",
+      "situation": "친구와 온라인으로 영화를 같이 보기로 했는데 시작 시간을 10분 착각했다",
+      "target": "FRIEND",
+      "tone": "SLICK",
+      "actualSeverity": "LIGHT",
+      "severityMatched": true,
+      "profile": {
+        "severity": "LIGHT",
+        "formality": "CASUAL",
+        "hasImpact": true,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": true,
+        "minSentences": 1,
+        "maxSentences": 2,
+        "minLength": 20,
+        "maxLength": 100
+      },
+      "excuse": "아, 시작 시간 10분 착각했어. 지금 바로 들어갈게!",
+      "length": 30,
+      "sentenceCount": 2,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 1,
+      "regenerated": false,
+      "classificationMs": 449,
+      "totalMs": 1102,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "아, 시작 시간 10분 착각했어. 지금 바로 들어갈게!",
+          "replyOptions": [
+            "헉, 시간 착각했네 ㅠㅠ 지금 바로 들어갈게!",
+            "오, 10분 늦었어 미안! 지금 접속할게",
+            "시작 시간 헷갈렸어 ㅜㅜ 바로 들어갈게"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "light_lover_snack",
+      "expectedSeverity": "LIGHT",
+      "situation": "연인이 부탁한 과자를 편의점에서 사 오는 걸 깜빡했다",
+      "target": "LOVER",
+      "tone": "BULLSHIT",
+      "actualSeverity": "LIGHT",
+      "severityMatched": true,
+      "profile": {
+        "severity": "LIGHT",
+        "formality": "CASUAL",
+        "hasImpact": true,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": true,
+        "minSentences": 1,
+        "maxSentences": 2,
+        "minLength": 20,
+        "maxLength": 100
+      },
+      "excuse": "미안, 과자 사올 생각했는데 깜빡했어. 지금 바로 편의점 가서 사올게!",
+      "length": 39,
+      "sentenceCount": 2,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 1,
+      "regenerated": false,
+      "classificationMs": 428,
+      "totalMs": 2166,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "미안, 과자 사올 생각했는데 깜빡했어. 지금 바로 편의점 가서 사올게!",
+          "replyOptions": [
+            "아, 미안! 지금 바로 편의점 가서 사올게.",
+            "헉, 기억이 안 났어 ㅜㅜ. 지금 사러 갈게!",
+            "죄송해요, 바로 사와드릴게요."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "normal_club_meeting",
+      "expectedSeverity": "NORMAL",
+      "situation": "동아리 회의 시간을 착각해서 30분 늦었다",
+      "target": "TEAM_MEMBER",
+      "tone": "MILD",
+      "actualSeverity": "NORMAL",
+      "severityMatched": true,
+      "profile": {
+        "severity": "NORMAL",
+        "formality": "POLITE",
+        "hasImpact": true,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": true,
+        "minSentences": 2,
+        "maxSentences": 3,
+        "minLength": 60,
+        "maxLength": 180
+      },
+      "excuse": "죄송합니다, 회의 시작 시간을 착각해서 30분 늦었습니다. 지금 바로 회의록을 정리해서 공유드리겠습니다.",
+      "length": 58,
+      "sentenceCount": 2,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 1,
+      "regenerated": false,
+      "classificationMs": 443,
+      "totalMs": 1072,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "죄송합니다, 회의 시작 시간을 착각해서 30분 늦었습니다. 지금 바로 회의록을 정리해서 공유드리겠습니다.",
+          "replyOptions": [
+            "죄송합니다, 회의 시간을 착각해 30분 늦었습니다. 지금 회의록을 정리해 바로 공유하겠습니다.",
+            "죄송해요, 회의 시작을 놓쳐 30분 지연됐어요. 곧 회의 내용을 정리해 공유드릴게요.",
+            "미안합니다, 회의 시간을 착각해 30분 늦었습니다. 바로 회의록을 정리해 공유하겠습니다."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "normal_assignment_late",
+      "expectedSeverity": "NORMAL",
+      "situation": "과제 제출 시간을 잘못 확인해서 마감보다 조금 늦게 제출했다",
+      "target": "TEACHER",
+      "tone": "DESPERATE",
+      "actualSeverity": "NORMAL",
+      "severityMatched": true,
+      "profile": {
+        "severity": "NORMAL",
+        "formality": "POLITE",
+        "hasImpact": true,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": false,
+        "minSentences": 2,
+        "maxSentences": 3,
+        "minLength": 60,
+        "maxLength": 180
+      },
+      "excuse": "죄송합니다, 제출 마감 시간을 착오하여 과제를 늦게 제출했습니다. 지금 바로 과제 파일을 검토하고 필요한 수정 사항을 반영해 다시 보내드리겠습니다.",
+      "length": 82,
+      "sentenceCount": 2,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 1,
+      "regenerated": false,
+      "classificationMs": 714,
+      "totalMs": 1386,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "죄송합니다, 제출 마감 시간을 착오하여 과제를 늦게 제출했습니다. 지금 바로 과제 파일을 검토하고 필요한 수정 사항을 반영해 다시 보내드리겠습니다.",
+          "replyOptions": [
+            "죄송합니다, 마감 시간을 착오해 과제가 늦게 제출되었습니다. 지금 바로 검토 후 수정해서 다시 보내드리겠습니다.",
+            "마감 시간을 잘못 확인해 과제가 늦게 제출됐습니다. 바로 파일을 확인하고 필요한 부분을 수정해 다시 전달드리겠습니다.",
+            "죄송합니다, 제출 시점을 착오해 과제가 늦었습니다. 즉시 검토 후 수정본을 곧 보내드리겠습니다."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "normal_team_material",
+      "expectedSeverity": "NORMAL",
+      "situation": "팀원에게 회의 전 전달하기로 한 참고 자료 공유가 늦어졌다",
+      "target": "TEAM_MEMBER",
+      "tone": "MILD",
+      "actualSeverity": "NORMAL",
+      "severityMatched": true,
+      "profile": {
+        "severity": "NORMAL",
+        "formality": "POLITE",
+        "hasImpact": true,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": false,
+        "minSentences": 2,
+        "maxSentences": 3,
+        "minLength": 60,
+        "maxLength": 180
+      },
+      "excuse": "죄송합니다, 회의 전에 전달드리기로 했던 자료가 아직 준비 중이라 곧 공유드리겠습니다. 현재 파일을 정리하고 있으니, 내에 공유 채널에 올리겠습니다.",
+      "length": 83,
+      "sentenceCount": 2,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 1,
+      "regenerated": false,
+      "classificationMs": 445,
+      "totalMs": 1647,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "죄송합니다, 회의 전에 전달드리기로 했던 자료가 아직 준비 중이라 곧 공유드리겠습니다. 현재 파일을 정리하고 있으니, 10분 내에 공유 채널에 올리겠습니다.",
+          "replyOptions": [
+            "죄송합니다, 회의 전에 전달드리기로 했던 자료가 아직 준비 중이라 곧 공유드리겠습니다. 현재 파일을 정리하고 있으니, 10분 내에 공유 채널에 올리겠습니다.",
+            "자료 준비가 늦어져 죄송합니다. 현재 작업 중이며, 곧 공유드리겠습니다.",
+            "죄송합니다, 아직 자료가 완성되지 않아 공유가 지연됩니다. 바로 마무리해서 올리겠습니다."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "normal_study_reservation",
+      "expectedSeverity": "NORMAL",
+      "situation": "스터디 모임 장소 예약을 늦게 해서 원래 원하던 시간대를 잡지 못했다",
+      "target": "CUSTOM",
+      "targetDescription": "같은 취업 스터디 팀원",
+      "tone": "MILD",
+      "actualSeverity": "NORMAL",
+      "severityMatched": true,
+      "profile": {
+        "severity": "NORMAL",
+        "formality": "POLITE",
+        "hasImpact": true,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": false,
+        "minSentences": 2,
+        "maxSentences": 3,
+        "minLength": 60,
+        "maxLength": 180
+      },
+      "excuse": "예약이 늦어져서 원하던 시간대를 확보하지 못했습니다. 현재 가능한 다른 장소를 확인하고 곧 공유드리겠습니다.",
+      "length": 60,
+      "sentenceCount": 2,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 1,
+      "regenerated": false,
+      "classificationMs": 416,
+      "totalMs": 1080,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "예약이 늦어져서 원하던 시간대를 확보하지 못했습니다. 현재 가능한 다른 장소를 확인하고 곧 공유드리겠습니다.",
+          "replyOptions": [
+            "예약이 늦어져서 죄송합니다. 지금 다른 장소를 찾아보고 바로 알려드릴게요.",
+            "원하던 시간에 예약이 안돼서 아쉽습니다. 현재 가능한 장소를 검토 중이며 곧 안내드리겠습니다.",
+            "예약이 지연돼서 원하던 시간대를 잡지 못했어요. 대체 옵션을 확인해서 곧 공유하겠습니다."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "normal_teacher_consult",
+      "expectedSeverity": "NORMAL",
+      "situation": "교수님과 잡은 상담 시간을 착각해서 약속보다 20분 늦었다",
+      "target": "TEACHER",
+      "tone": "MILD",
+      "actualSeverity": "NORMAL",
+      "severityMatched": true,
+      "profile": {
+        "severity": "NORMAL",
+        "formality": "POLITE",
+        "hasImpact": true,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": false,
+        "minSentences": 2,
+        "maxSentences": 3,
+        "minLength": 60,
+        "maxLength": 180
+      },
+      "excuse": "교수님, 약속 시간을 착각해 20분 늦게 도착했습니다. 지금 바로 상황을 확인하고 상담을 시작하겠습니다.",
+      "length": 58,
+      "sentenceCount": 2,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 1,
+      "regenerated": false,
+      "classificationMs": 510,
+      "totalMs": 1261,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "교수님, 약속 시간을 착각해 20분 늦게 도착했습니다. 지금 바로 상황을 확인하고 상담을 시작하겠습니다.",
+          "replyOptions": [
+            "교수님, 약속 시간을 착각해 20분 늦었습니다. 지금 상황을 확인하고 바로 시작하겠습니다.",
+            "죄송합니다, 약속 시간을 혼동해 20분 늦었어요. 지금 바로 확인하고 상담을 진행하겠습니다.",
+            "죄송합니다, 20분 늦었어요. 현재 상황을 점검하고 바로 상담을 시작하겠습니다."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "normal_team_draft",
+      "expectedSeverity": "NORMAL",
+      "situation": "팀장님에게 오전에 보여드리기로 한 기획서 초안 공유가 오후로 늦어졌다",
+      "target": "TEAM_LEAD",
+      "tone": "SLICK",
+      "actualSeverity": "NORMAL",
+      "severityMatched": true,
+      "profile": {
+        "severity": "NORMAL",
+        "formality": "POLITE",
+        "hasImpact": true,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": false,
+        "minSentences": 2,
+        "maxSentences": 3,
+        "minLength": 60,
+        "maxLength": 180
+      },
+      "excuse": "죄송합니다, 기획서 초안 공유가 늦어졌습니다. 현재 초안 상태를 확인하고 바로 전달드리겠습니다.",
+      "length": 53,
+      "sentenceCount": 2,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 2,
+      "regenerated": true,
+      "classificationMs": 504,
+      "totalMs": 1987,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "팀장님, 예정대로 오전에 기획서 초안을 공유드리려 했으나 오늘 사내 시스템 점검으로 파일 전송이 지연되었습니다. 현재 파일을 확인 중이며, 오후 중으로 바로 공유드리겠습니다.",
+          "replyOptions": [
+            "죄송합니다, 오늘 시스템 점검으로 초안 공유가 늦어졌습니다. 지금 확인 중이며, 오후에 바로 보내드리겠습니다.",
+            "예정대로 오전에 공유하려 했지만 시스템 점검 때문에 지연됐습니다. 파일을 점검하고 곧 공유드리겠습니다.",
+            "시스템 점검으로 인해 초안 전달이 늦었습니다. 현재 확인 중이며, 오후에 바로 전달드리겠습니다."
+          ]
+        },
+        {
+          "excuse": "죄송합니다, 기획서 초안 공유가 늦어졌습니다. 현재 초안 상태를 확인하고 오늘 중으로 바로 전달드리겠습니다.",
+          "replyOptions": [
+            "죄송합니다, 초안 공유가 늦었습니다. 지금 상태를 확인하고 오늘 안에 보내드리겠습니다.",
+            "죄송합니다, 기획서 초안이 지연됐습니다. 현재 진행 상황을 점검하고 오늘 중으로 전달드릴게요.",
+            "죄송합니다, 초안 전달이 늦었습니다. 지금 바로 확인하고 오늘 중으로 공유하겠습니다."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "normal_lover_event",
+      "expectedSeverity": "NORMAL",
+      "situation": "연인과 함께 준비하기로 한 가족 행사 준비물을 제때 확인하지 않아 일정이 조금 밀렸다",
+      "target": "LOVER",
+      "tone": "DESPERATE",
+      "actualSeverity": "NORMAL",
+      "severityMatched": true,
+      "profile": {
+        "severity": "NORMAL",
+        "formality": "POLITE",
+        "hasImpact": true,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": false,
+        "minSentences": 2,
+        "maxSentences": 3,
+        "minLength": 60,
+        "maxLength": 180
+      },
+      "excuse": "죄송해요, 가족 행사 준비물을 확인하는 걸 놓쳐서 일정이 조금 늦어졌어요. 지금 바로 체크리스트를 다시 정리하고 공유드릴게요.",
+      "length": 70,
+      "sentenceCount": 2,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 1,
+      "regenerated": false,
+      "classificationMs": 468,
+      "totalMs": 1242,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "죄송해요, 가족 행사 준비물을 확인하는 걸 놓쳐서 일정이 조금 늦어졌어요. 지금 바로 체크리스트를 다시 정리하고 내일 중으로 공유드릴게요.",
+          "replyOptions": [
+            "죄송합니다, 행사 준비물을 확인하지 못해 일정이 지연됐어요. 바로 체크리스트를 정리하고 내일 공유하겠습니다.",
+            "죄송해요, 준비물을 놓쳐서 일정이 늦어졌어요. 지금 바로 확인하고 내일 자료를 보내드릴게요.",
+            "미안해요, 가족 행사 준비물을 놓쳐서 일정이 밀렸어요. 체크리스트를 다시 만들고 내일 전달하겠습니다."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "serious_client_deck",
+      "expectedSeverity": "SERIOUS",
+      "situation": "고객사에 전달할 최종 발표자료를 마감까지 제출하지 못했다",
+      "target": "TEAM_LEAD",
+      "tone": "MILD",
+      "actualSeverity": "SERIOUS",
+      "severityMatched": true,
+      "profile": {
+        "severity": "SERIOUS",
+        "formality": "POLITE",
+        "hasImpact": true,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": false,
+        "minSentences": 3,
+        "maxSentences": 5,
+        "minLength": 120,
+        "maxLength": 350
+      },
+      "excuse": "죄송합니다, 최종 발표자료를 마감까지 제출하지 못했습니다. 이로 인해 발표 일정에 차질이 발생했을 점 깊이 사과드립니다. 현재 자료를 최종 검토 중이며, 검토가 끝나는 대로 바로 공유드리겠습니다.",
+      "length": 109,
+      "sentenceCount": 3,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 1,
+      "regenerated": false,
+      "classificationMs": 445,
+      "totalMs": 1131,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "죄송합니다, 최종 발표자료를 마감까지 제출하지 못했습니다. 이로 인해 발표 일정에 차질이 발생했을 점 깊이 사과드립니다. 현재 자료를 최종 검토 중이며, 검토가 끝나는 대로 바로 공유드리겠습니다.",
+          "replyOptions": [
+            "죄송합니다, 최종 발표자료를 마감까지 제출하지 못했습니다. 현재 검토 중이며 완료되는 즉시 공유드리겠습니다.",
+            "죄송합니다, 자료 제출이 지연돼 발표 일정에 영향을 드렸습니다. 지금 바로 검토 후 곧 보내드리겠습니다.",
+            "죄송합니다, 마감일에 자료를 전달하지 못해 죄송합니다. 현재 확인 중이며, 완료되는 대로 바로 전달하겠습니다."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "serious_production_deploy",
+      "expectedSeverity": "SERIOUS",
+      "situation": "회사 서비스 배포 과정에서 필수 데이터 백업 작업을 누락했다",
+      "target": "TEAM_LEAD",
+      "tone": "BULLSHIT",
+      "actualSeverity": null,
+      "severityMatched": false,
+      "profile": null,
+      "excuse": null,
+      "length": 0,
+      "sentenceCount": 0,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 2,
+      "regenerated": true,
+      "classificationMs": 436,
+      "totalMs": 1957,
+      "error": "HTTPException: 422: {'code': 'GROUNDING_QUALITY_REJECTED', 'message': '입력에 없는 사실이 없는 변명을 만들지 못했습니다. 다시 시도해주세요.'}",
+      "generatedCandidates": [
+        {
+          "excuse": "서비스 배포 중 필수 데이터 백업을 누락하여 현재 일부 기능에 오류가 발생하고 있습니다. 이에 즉시 백업 복구 작업을 진행 중이며, 재발 방지를 위해 배포 체크리스트를 강화하겠습니다.",
+          "replyOptions": [
+            "백업 누락으로 일부 기능에 오류가 발생했습니다. 현재 복구 작업을 진행 중이며, 체크리스트를 강화해 재발을 막겠습니다.",
+            "필수 데이터 백업을 놓쳐 서비스에 오류가 생겼습니다. 즉시 복구 중이며, 배포 절차를 개선하겠습니다.",
+            "배포 시 백업을 빼먹어 문제를 일으켰습니다. 복구 작업을 진행하고, 체크리스트를 보강해 같은 실수를 방지하겠습니다."
+          ]
+        },
+        {
+          "excuse": "필수 데이터 백업을 누락해 배포에 문제가 발생했습니다. 이로 인해 서비스 이용에 차질이 생겼으며, 현재 즉시 백업을 재수행하고 복구 작업을 진행하고 있습니다. 재발 방지를 위해 체크리스트를 강화하겠습니다.",
+          "replyOptions": [
+            "백업 누락으로 배포에 차질이 발생했습니다. 현재 백업을 재수행하고 복구 중이며, 체크리스트를 강화하겠습니다.",
+            "필수 백업을 놓쳐 서비스에 영향을 줬습니다. 즉시 재백업하고 복구 작업을 진행 중이며, 동일 오류 방지를 위해 절차를 점검하겠습니다.",
+            "배포 시 백업을 빼먹어 서비스에 불편을 드렸습니다. 지금 바로 백업을 다시 하고 복구하고 있으며, 재발 방지를 위한 체크리스트를 업데이트하겠습니다."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "serious_interview",
+      "expectedSeverity": "SERIOUS",
+      "situation": "중요한 최종 면접 일정을 완전히 잊어서 참석하지 못했다",
+      "target": "CUSTOM",
+      "targetDescription": "채용 담당자",
+      "tone": "DESPERATE",
+      "actualSeverity": "SERIOUS",
+      "severityMatched": true,
+      "profile": {
+        "severity": "SERIOUS",
+        "formality": "POLITE",
+        "hasImpact": true,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": false,
+        "minSentences": 3,
+        "maxSentences": 5,
+        "minLength": 120,
+        "maxLength": 350
+      },
+      "excuse": "죄송합니다, 중요한 최종 면접 일정을 놓쳐 참석하지 못했습니다. 이로 인해 채용 일정에 차질이 발생했음을 깊이 사과드립니다. 현재 가능한 빠른 시일 내에 재조정 가능한 일정을 확인하고 바로 알려드리겠습니다.",
+      "length": 115,
+      "sentenceCount": 3,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 1,
+      "regenerated": false,
+      "classificationMs": 472,
+      "totalMs": 1174,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "죄송합니다, 중요한 최종 면접 일정을 놓쳐 참석하지 못했습니다. 이로 인해 채용 일정에 차질이 발생했음을 깊이 사과드립니다. 현재 가능한 빠른 시일 내에 재조정 가능한 일정을 확인하고 바로 알려드리겠습니다.",
+          "replyOptions": [
+            "죄송합니다, 면접 일정을 놓쳐 참석하지 못했습니다. 바로 재조정 가능한 일정을 확인해 알려드리겠습니다.",
+            "면접을 놓쳐 죄송합니다. 현재 가능한 일정을 빠르게 확인 중이며 곧 연락드리겠습니다.",
+            "저의 실수로 면접에 참석하지 못해 죄송합니다. 가능한 재조정 일정을 지금 확인하고 알려드리겠습니다."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "serious_friend_loss",
+      "expectedSeverity": "SERIOUS",
+      "situation": "친구가 꼭 처리해달라고 맡긴 결제 취소 요청을 잊어서 친구에게 큰 금전 손해가 발생했다",
+      "target": "FRIEND",
+      "tone": "MILD",
+      "actualSeverity": "SERIOUS",
+      "severityMatched": true,
+      "profile": {
+        "severity": "SERIOUS",
+        "formality": "POLITE",
+        "hasImpact": true,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": false,
+        "minSentences": 3,
+        "maxSentences": 5,
+        "minLength": 120,
+        "maxLength": 350
+      },
+      "excuse": "죄송해, 네가 맡긴 결제 취소를 놓쳐서 손해가 생긴 것 같아. 지금 바로 해당 업체에 연락해서 취소 절차를 진행하고, 가능한 환불을 요청할게. 앞으로 이런 일이 반복되지 않도록 체크 리스트를 만들겠어.",
+      "length": 112,
+      "sentenceCount": 3,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 1,
+      "regenerated": false,
+      "classificationMs": 455,
+      "totalMs": 1213,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "죄송해, 네가 맡긴 결제 취소를 놓쳐서 손해가 생긴 것 같아. 지금 바로 해당 업체에 연락해서 취소 절차를 진행하고, 가능한 환불을 요청할게. 앞으로 이런 일이 반복되지 않도록 체크 리스트를 만들겠어.",
+          "replyOptions": [
+            "죄송해, 네 결제 취소를 놓쳐서 손해가 생긴 것 같아. 바로 업체에 연락해 취소하고 환불을 요청할게. 앞으로는 체크 리스트로 놓치지 않겠어.",
+            "미안해, 네가 맡긴 결제 취소를 빼먹어서 불편을 끼쳤어. 지금 바로 해당 업체에 연락해 취소하고 환불을 시도할게. 재발 방지를 위해 관리 체계를 강화할게.",
+            "죄송합니다, 결제 취소를 놓쳐서 손해가 발생했네요. 바로 업체에 연락해 취소 절차를 밟고 환불을 요청하겠습니다. 다음부터는 확인 절차를 추가하겠습니다."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "serious_safety_check",
+      "expectedSeverity": "SERIOUS",
+      "situation": "행사 시작 전 반드시 해야 하는 안전 장비 점검을 누락한 채 행사를 진행했다",
+      "target": "TEAM_LEAD",
+      "tone": "MILD",
+      "actualSeverity": "SERIOUS",
+      "severityMatched": true,
+      "profile": {
+        "severity": "SERIOUS",
+        "formality": "POLITE",
+        "hasImpact": true,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": false,
+        "minSentences": 3,
+        "maxSentences": 5,
+        "minLength": 120,
+        "maxLength": 350
+      },
+      "excuse": "안녕하세요 팀리드님, 행사 시작 전에 안전 장비 점검을 놓쳐 진행하게 된 점 사과드립니다. 이로 인해 현장에서 안전 위험이 발생했을 수 있어 매우 안타깝습니다. 현재 저는 즉시 현장 점검을 진행하고, 필요한 장비를 추가로 설치하고 있습니다. 추후 같은 실수가 발생하지 않도록 점검 프로세스를 강화하겠습니다.",
+      "length": 171,
+      "sentenceCount": 5,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 1,
+      "regenerated": false,
+      "classificationMs": 472,
+      "totalMs": 1591,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "안녕하세요 팀리드님, 오늘 행사 시작 전에 안전 장비 점검을 놓쳐 진행하게 된 점 사과드립니다. 이로 인해 현장에서 안전 위험이 발생했을 수 있어 매우 안타깝습니다. 현재 저는 즉시 현장 점검을 진행하고, 필요한 장비를 추가로 설치하고 있습니다. 추후 같은 실수가 발생하지 않도록 점검 프로세스를 강화하겠습니다.",
+          "replyOptions": [
+            "안녕하세요 팀리드님, 안전 장비 점검 누락으로 불편을 드려 죄송합니다. 지금 현장 점검 중이며 부족한 장비를 바로 보강하고 있습니다. 추후 재발 방지를 위해 절차를 개선하겠습니다.",
+            "팀리드님, 안전 점검을 빼먹은 점 사과드립니다. 현재 현장에서 즉시 점검하고 부족한 장비를 설치하고 있습니다. 앞으로는 점검 체크리스트를 강화하겠습니다.",
+            "죄송합니다, 안전 장비 확인을 놓쳐 행사가 진행되었습니다. 지금 현장 상황을 점검하고 필요한 장비를 추가하고 있습니다. 동일 실방지를 위해 프로세스를 재정비하겠습니다."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "serious_customer_data",
+      "expectedSeverity": "SERIOUS",
+      "situation": "고객에게 보내면 안 되는 내부 정보가 포함된 파일을 실수로 전달했다",
+      "target": "TEAM_LEAD",
+      "tone": "SLICK",
+      "actualSeverity": "SERIOUS",
+      "severityMatched": true,
+      "profile": {
+        "severity": "SERIOUS",
+        "formality": "FORMAL",
+        "hasImpact": true,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": false,
+        "minSentences": 3,
+        "maxSentences": 5,
+        "minLength": 120,
+        "maxLength": 350
+      },
+      "excuse": "죄송합니다, 내부 정보를 포함한 파일을 실수로 고객에게 전달했습니다. 이로 인해 고객에게 혼란을 드렸을 수 있습니다. 현재 파일을 회수하고, 해당 내용이 외부에 유출되지 않았는지 확인하겠습니다.",
+      "length": 108,
+      "sentenceCount": 3,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 1,
+      "regenerated": false,
+      "classificationMs": 440,
+      "totalMs": 1227,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "죄송합니다, 내부 정보를 포함한 파일을 실수로 고객에게 전달했습니다. 이로 인해 고객에게 혼란을 드렸을 수 있습니다. 현재 파일을 회수하고, 해당 내용이 외부에 유출되지 않았는지 확인하겠습니다.",
+          "replyOptions": [
+            "죄송합니다, 내부 정보가 들어있는 파일을 실수로 고객에게 보내드렸습니다. 현재 회수를 진행 중이며, 유출 여부를 확인하고 있습니다.",
+            "죄송합니다, 기밀 파일이 고객에게 전달되어 혼란을 드렸습니다. 즉시 회수하고 내용 검증을 수행하고 있습니다.",
+            "죄송합니다, 내부 자료가 포함된 파일이 잘못 전달되었습니다. 지금 파일 회수와 유출 검증을 진행하고 있습니다."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "serious_team_deadline",
+      "expectedSeverity": "SERIOUS",
+      "situation": "내 작업을 마감하지 못해서 다른 팀원들의 최종 제출 작업까지 모두 막힌 상태다",
+      "target": "TEAM_MEMBER",
+      "tone": "BULLSHIT",
+      "actualSeverity": "SERIOUS",
+      "severityMatched": true,
+      "profile": {
+        "severity": "SERIOUS",
+        "formality": "POLITE",
+        "hasImpact": true,
+        "needsAccountability": true,
+        "needsNextAction": true,
+        "humorAllowed": false,
+        "minSentences": 3,
+        "maxSentences": 5,
+        "minLength": 120,
+        "maxLength": 350
+      },
+      "excuse": "죄송합니다, 작업을 마감하지 못해 팀 전체의 최종 제출이 지연되고 있습니다. 현재 남은 부분을 즉시 정리하고 곧바로 공유드리겠습니다. 재발 방지를 위해 앞으로 작업 일정을 재조정하겠습니다.",
+      "length": 105,
+      "sentenceCount": 3,
+      "fitIssues": [],
+      "groundingIssues": [],
+      "seriousHumorViolation": false,
+      "generationCalls": 1,
+      "regenerated": false,
+      "classificationMs": 441,
+      "totalMs": 1261,
+      "error": null,
+      "generatedCandidates": [
+        {
+          "excuse": "죄송합니다, 오늘 작업을 마감하지 못해 팀 전체의 최종 제출이 지연되고 있습니다. 현재 남은 부분을 즉시 정리하고 곧바로 공유드리겠습니다. 재발 방지를 위해 앞으로 작업 일정을 재조정하겠습니다.",
+          "replyOptions": [
+            "죄송합니다, 오늘 작업을 마감하지 못해 팀 전체 제출이 지연되고 있습니다. 남은 부분을 바로 정리해 공유드리겠습니다. 앞으로는 일정 관리에 더욱 신경 쓰겠습니다.",
+            "죄송합니다, 작업 마감에 차질이 생겨 팀 전체 제출이 늦어졌습니다. 현재 남은 작업을 바로 마무리하고 공유하겠습니다. 같은 문제가 반복되지 않도록 일정 조정을 하겠습니다.",
+            "죄송합니다, 작업을 마감하지 못해 팀의 최종 제출이 지연되고 있습니다. 남은 작업을 즉시 완료하고 공유하겠습니다. 재발 방지를 위해 작업 일정을 재점검하겠습니다."
+          ]
+        }
+      ]
+    }
+  ]
+}

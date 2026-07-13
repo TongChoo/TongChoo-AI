@@ -62,3 +62,20 @@ def test_payload_uses_cerebras_strict_structured_output() -> None:
     assert schema["type"] == "object"
     assert schema["additionalProperties"] is False
     assert schema["properties"]["aftermath"]["items"]["additionalProperties"] is False
+
+
+def test_classification_payload_uses_low_temperature_and_separate_schema() -> None:
+    client = SimpleNamespace(
+        settings=SimpleNamespace(
+            cerebras_model="test-model",
+            classification_temperature=0.1,
+            reasoning_effort="low",
+        )
+    )
+
+    payload = CerebrasClient._build_classification_payload(client, "system", "user")
+
+    assert payload["temperature"] == 0.1
+    assert payload["response_format"]["json_schema"]["name"] == "tongchoo_situation_profile_v1"
+    schema = payload["response_format"]["json_schema"]["schema"]
+    assert schema["properties"]["severity"]["enum"] == ["LIGHT", "NORMAL", "SERIOUS"]

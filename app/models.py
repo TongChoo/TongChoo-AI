@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import (
     AliasChoices,
@@ -68,6 +68,65 @@ class GenerationMode(StrEnum):
 
     CREATE = "CREATE"
     REPLY = "REPLY"
+
+
+class SituationSeverity(StrEnum):
+    """변명이 필요한 상황의 영향과 복구 난이도를 나타낸다."""
+
+    LIGHT = "LIGHT"
+    NORMAL = "NORMAL"
+    SERIOUS = "SERIOUS"
+
+
+class SituationProfile(BaseModel):
+    """변명 생성 전에 만드는 상황별 작업 지시서.
+
+    상대의 직책 하나가 아니라 실제 영향·책임·복구 필요성을 함께 보관한다. 길이와
+    문장 수 범위도 프로필에 포함해 프롬프트와 로컬 품질 검사가 같은 기준을 사용한다.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    severity: SituationSeverity
+    formality: Literal["CASUAL", "POLITE", "FORMAL"]
+    hasImpact: bool
+    needsAccountability: bool
+    needsNextAction: bool
+    humorAllowed: bool
+    minSentences: Annotated[int, Field(ge=1, le=5)]
+    maxSentences: Annotated[int, Field(ge=1, le=5)]
+    minLength: Annotated[int, Field(ge=1, le=350)]
+    maxLength: Annotated[int, Field(ge=20, le=500)]
+
+    @model_validator(mode="after")
+    def validate_ranges(self) -> "SituationProfile":
+        """최솟값이 최댓값보다 큰 잘못된 작업 지시서를 거절한다."""
+        if self.minSentences > self.maxSentences:
+            raise ValueError("minSentences는 maxSentences보다 클 수 없습니다.")
+        if self.minLength > self.maxLength:
+            raise ValueError("minLength는 maxLength보다 클 수 없습니다.")
+        return self
+
+    def for_mode(self, mode: GenerationMode) -> "SituationProfile":
+        """후속 답장은 최초 변명보다 짧게 허용하되 심각도 판단은 유지한다."""
+        if mode != GenerationMode.REPLY:
+            return self
+        reply_ranges = {
+            SituationSeverity.LIGHT: (1, 2, 10, 100),
+            SituationSeverity.NORMAL: (1, 3, 30, 160),
+            SituationSeverity.SERIOUS: (2, 4, 60, 260),
+        }
+        min_sentences, max_sentences, min_length, max_length = reply_ranges[
+            self.severity
+        ]
+        return self.model_copy(
+            update={
+                "minSentences": min_sentences,
+                "maxSentences": max_sentences,
+                "minLength": min_length,
+                "maxLength": max_length,
+            }
+        )
 
 
 class ConversationRole(StrEnum):
@@ -213,6 +272,9 @@ class GenerateRequest(BaseModel):
     target: Target
     targetDescription: Annotated[str | None, Field(default=None, max_length=100)]
     tone: Tone
+    # CREATE에서는 AI가 새로 분류하고, REPLY에서는 Spring DB에 저장된 값을 전달한다.
+    # 후속 메시지만 보고 심각도가 흔들리지 않게 하는 대화 전체의 고정 기준이다.
+    situationSeverity: SituationSeverity | None = None
     memory: Annotated[str, Field(default="", max_length=12000)]
     rootExcuse: Annotated[
         str | None, Field(default=None, min_length=1, max_length=1000)
@@ -241,6 +303,8 @@ class GenerateRequest(BaseModel):
             raise ValueError("CUSTOM 대상에는 targetDescription이 필요합니다.")
 
         if self.mode == GenerationMode.REPLY:
+            if self.situationSeverity is None:
+                raise ValueError("REPLY 모드에는 situationSeverity가 필요합니다.")
             if not self.incomingMessage:
                 raise ValueError("REPLY 모드에는 incomingMessage가 필요합니다.")
             if not (self.currentExcuse or self.rootExcuse or self.conversation):
@@ -266,6 +330,7 @@ class SpringContextRequest(BaseModel):
     target: Target
     targetDescription: Annotated[str | None, Field(default=None, max_length=100)]
     tone: Tone
+    situationSeverity: SituationSeverity | None = None
     memory: Annotated[str, Field(default="", max_length=12000)]
     # Spring은 DB에서 선택한 현재 가지의 문맥을 이 필드들로 전달한다. 전용
     # create/reply DTO가 모두 이 공통 기반 모델을 쓰므로, 여기서 선언해야
@@ -309,6 +374,7 @@ class SpringContextRequest(BaseModel):
             target=self.target,
             targetDescription=self.targetDescription.strip() if self.targetDescription else None,
             tone=self.tone,
+            situationSeverity=self.situationSeverity,
             memory=self.memory,
             rootExcuse=self.rootExcuse,
             conversation=self.conversation,
@@ -332,6 +398,7 @@ class SpringCreateRequest(SpringContextRequest):
 class SpringReplyRequest(SpringContextRequest):
     """Spring의 ``incomingMessage``와 DB 문맥을 함께 받는 답장 생성 요청."""
 
+    situationSeverity: SituationSeverity
     incomingMessage: Annotated[str, Field(min_length=1, max_length=2000)]
 
     @model_validator(mode="after")
@@ -395,6 +462,7 @@ class SpringExcuseResponse(BaseModel):
     realism: Annotated[int, Field(ge=1, le=5)]
     persuasion: Annotated[int, Field(ge=1, le=5)]
     suspicionLevel: SuspicionLevel
+    situationSeverity: SituationSeverity
     # REPLY UI는 세 후보의 순서 자체에 의미가 있다. Spring이 Item으로 재구성하면
     # 복사해 보낼 문장 API가 불필요하게 복잡해지므로, 생성 순서를 유지한 문자열 목록을
     # 그대로 전달한다.
@@ -404,7 +472,11 @@ class SpringExcuseResponse(BaseModel):
     aftermaths: Annotated[list[SpringAftermath], Field(max_length=4)]
 
     @classmethod
-    def from_result(cls, result: ExcuseResult) -> "SpringExcuseResponse":
+    def from_result(
+        cls,
+        result: ExcuseResult,
+        situation_severity: SituationSeverity,
+    ) -> "SpringExcuseResponse":
         """평면 제공자 결과를 Java 클라이언트의 내부 응답 구조로 변환한다.
 
         enumerate의 0 기반 순서는 Spring의 sortOrder 계약과 맞춘다. 목록 문자열은
@@ -416,6 +488,7 @@ class SpringExcuseResponse(BaseModel):
             realism=result.realism,
             persuasion=result.persuasion,
             suspicionLevel=result.suspicionLevel,
+            situationSeverity=situation_severity,
             replyOptions=result.replyOptions,
             riskFactors=[
                 SpringItem(content=item, sortOrder=index)
@@ -493,6 +566,44 @@ LLM_RESULT_SCHEMA = {
         "riskFactors",
         "aftermath",
         "remember",
+    ],
+    "additionalProperties": False,
+}
+
+
+# 상황 분류 전용 strict Structured Output 스키마. 생성 결과 스키마와 분리해 분류
+# 단계가 불필요한 변명 본문이나 점수까지 만들지 않게 한다.
+SITUATION_PROFILE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "severity": {
+            "type": "string",
+            "enum": ["LIGHT", "NORMAL", "SERIOUS"],
+        },
+        "formality": {
+            "type": "string",
+            "enum": ["CASUAL", "POLITE", "FORMAL"],
+        },
+        "hasImpact": {"type": "boolean"},
+        "needsAccountability": {"type": "boolean"},
+        "needsNextAction": {"type": "boolean"},
+        "humorAllowed": {"type": "boolean"},
+        "minSentences": {"type": "integer"},
+        "maxSentences": {"type": "integer"},
+        "minLength": {"type": "integer"},
+        "maxLength": {"type": "integer"},
+    },
+    "required": [
+        "severity",
+        "formality",
+        "hasImpact",
+        "needsAccountability",
+        "needsNextAction",
+        "humorAllowed",
+        "minSentences",
+        "maxSentences",
+        "minLength",
+        "maxLength",
     ],
     "additionalProperties": False,
 }

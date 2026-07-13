@@ -36,6 +36,7 @@ class _FakeGenerationService:
             realism=3,
             persuasion=3,
             suspicionLevel="MEDIUM",
+            situationSeverity=request.situationSeverity or "NORMAL",
             replyOptions=[
                 "지금 일정부터 확인하겠습니다.",
                 "미리 공유하지 못해 죄송합니다. 오늘 일정 영향부터 정리해 바로 공유드리겠습니다.",
@@ -77,6 +78,7 @@ class SpringReplyContractTests(unittest.TestCase):
                 "situation": "팀 회의에 20분 늦었다",
                 "target": "TEAM_LEAD",
                 "tone": "MILD",
+                "situationSeverity": "SERIOUS",
                 "rootExcuse": "회의 시작 시간을 잘못 봤습니다.",
                 "currentExcuse": "미리 공유하지 못해 죄송합니다. 지금 일정부터 확인하겠습니다.",
                 "conversation": [
@@ -111,6 +113,8 @@ class SpringReplyContractTests(unittest.TestCase):
             "그래서 오늘 일정은 어떻게 할 건가요?",
         )
         self.assertEqual(self.service.request.roundNumber, 3)
+        self.assertEqual(self.service.request.situationSeverity.value, "SERIOUS")
+        self.assertEqual(response.json()["situationSeverity"], "SERIOUS")
         self.assertEqual(len(self.service.request.conversation), 4)
         self.assertEqual(self.service.request.conversation[-1].role.value, "user")
         self.assertEqual(
@@ -132,6 +136,21 @@ class SpringReplyContractTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 404)
+
+    def test_reply_without_persisted_situation_severity_is_rejected(self) -> None:
+        response = self.client.post(
+            "/internal/v1/excuses/reply",
+            json={
+                "situation": "고객사 자료 제출을 놓쳤다",
+                "target": "TEAM_LEAD",
+                "tone": "MILD",
+                "currentExcuse": "자료 제출을 놓쳤습니다.",
+                "incomingMessage": "그래서 어떻게 할 건가요?",
+                "roundNumber": 2,
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
 
     def test_custom_target_description_is_preserved(self) -> None:
         response = self.client.post(
