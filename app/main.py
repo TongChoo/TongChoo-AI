@@ -4,6 +4,8 @@ Spring은 인증·DB·대화 계보를 담당하고, 이 모듈은 검증된 문
 AI 생성 결과만 반환한다. 따라서 이 파일에는 도메인 저장 로직을 두지 않는다.
 """
 
+from __future__ import annotations
+
 import logging
 from functools import lru_cache
 from typing import Annotated

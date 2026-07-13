@@ -4,6 +4,8 @@
 prompts.py, Spring 응답 변환은 service.py에서 담당한다.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import time

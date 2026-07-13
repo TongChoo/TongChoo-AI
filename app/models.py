@@ -4,10 +4,20 @@
 응답을 별도 변환 없이 연결하기 위해서다.
 """
 
-from enum import StrEnum
+from __future__ import annotations
+
+from enum import Enum
 from typing import Annotated
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
+
+try:
+    from enum import StrEnum
+except ImportError:
+    class StrEnum(str, Enum):
+        """Python 3.9 로컬 실행을 위한 StrEnum 호환 클래스."""
+
+        pass
 
 
 class Target(StrEnum):
