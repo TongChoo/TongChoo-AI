@@ -77,7 +77,10 @@ def build_user_prompt(
 {memory}
 [/MEMORY_DATA]
 
-위 데이터를 바탕으로 출력 Schema를 정확히 채워라. excuse는 가장 자연스러운 기본안으로 작성하고, replyOptions는 짧은 대체안 2~3개를 작성하라."""
+위 데이터를 바탕으로 출력 Schema를 정확히 채워라.
+REPLY 모드에서는 incomingMessage가 상대방의 가장 최신 질문이다. 반드시 그 최신 질문에 직접 답하고,
+currentExcuse를 그대로 반복하거나 이전 user turn에 대한 답변을 재사용하지 마라.
+excuse는 가장 자연스러운 기본안으로 작성하고, replyOptions는 짧은 대체안 2~3개를 작성하라."""
 
 
 def _request_data(request: GenerateRequest) -> str:
