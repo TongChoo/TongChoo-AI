@@ -161,7 +161,7 @@ class GenerateRequest(BaseModel):
     conversation: Annotated[list[ConversationTurn], Field(default_factory=list, max_length=10)]
     currentExcuse: Annotated[str | None, Field(default=None, min_length=1, max_length=1000)]
     incomingMessage: Annotated[str | None, Field(default=None, min_length=1, max_length=2000)]
-    roundNumber: Annotated[int | None, Field(default=None, ge=1, le=10)]
+    roundNumber: Annotated[int | None, Field(default=None, ge=1, le=5)]
     evolveDirection: Annotated[
         str | None,
         Field(
@@ -205,7 +205,7 @@ class SpringContextRequest(BaseModel):
     rootExcuse: Annotated[str | None, Field(default=None, min_length=1, max_length=1000)]
     conversation: Annotated[list[ConversationTurn], Field(default_factory=list, max_length=10)]
     currentExcuse: Annotated[str | None, Field(default=None, min_length=1, max_length=1000)]
-    roundNumber: Annotated[int | None, Field(default=None, ge=1, le=10)]
+    roundNumber: Annotated[int | None, Field(default=None, ge=1, le=5)]
 
     def to_generate_request(
         self,

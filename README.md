@@ -93,7 +93,8 @@ only at `/internal/v1/excuses/generate/raw` for diagnostics.
 ```
 
 `conversation` is the current branch selected by Spring and accepts up to 10
-turns. `roundNumber` currently accepts 1~10 to support the expanded round limit.
+turns. `roundNumber` accepts 1~5 because the service limits reply preparation
+to five rounds.
 The Spring-facing response matches the Java client contract: `excuse`, score
 fields, `suspicionLevel`, `riskFactors`, `rememberItems`, and `aftermaths`.
 IDs, parent IDs, XP, complexity warnings, and timestamps remain Spring-owned
