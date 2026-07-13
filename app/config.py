@@ -50,6 +50,24 @@ class Settings(BaseSettings):
     # 생성 품질·지연시간·비용 균형을 위한 재시도와 토큰 정책. max_attempts는 제공자
     # 네트워크/형식 오류 재시도 횟수이며, service.py의 REPLY 품질 재생성과는 별개다.
     max_attempts: int = Field(default=2, ge=1, le=3, alias="LLM_MAX_ATTEMPTS")
+    reply_quality_max_attempts: int = Field(
+        default=2,
+        ge=1,
+        le=3,
+        alias="REPLY_QUALITY_MAX_ATTEMPTS",
+    )
+    aftermath_quality_max_attempts: int = Field(
+        default=2,
+        ge=1,
+        le=3,
+        alias="AFTERMATH_QUALITY_MAX_ATTEMPTS",
+    )
+    reply_similarity_threshold: float = Field(
+        default=0.9,
+        ge=0.7,
+        le=1.0,
+        alias="REPLY_SIMILARITY_THRESHOLD",
+    )
     max_completion_tokens: int = Field(
         default=1400,
         ge=1,

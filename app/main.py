@@ -19,7 +19,6 @@ from app.models import (
     GenerationMode,
     GenerateRequest,
     SpringCreateRequest,
-    SpringEvolveRequest,
     SpringExcuseResponse,
     SpringReplyRequest,
 )
@@ -122,7 +121,7 @@ async def _generate_response(
 ) -> SpringExcuseResponse:
     """모든 생성 엔드포인트가 공유하는 로그 기록과 서비스 호출.
 
-    요청 DTO를 여기까지 통일하면 create/evolve/reply 엔드포인트는 Spring 계약에 맞는
+    요청 DTO를 여기까지 통일하면 create/reply 엔드포인트는 Spring 계약에 맞는
     입력 변환만 담당하고, 실제 생성 규칙은 서비스 계층 한 곳에서 유지할 수 있다.
     """
     # middleware가 항상 state에 넣어 준 request_id를 사용한다. 여기서 새 ID를 만들지
@@ -185,28 +184,6 @@ async def create_excuse_for_spring(
 
 
 @app.post(
-    "/internal/v1/excuses/evolve",
-    response_model=SpringExcuseResponse,
-    dependencies=InternalOnly,
-    tags=["Spring 내부 API"],
-    summary="기존 변명 수정",
-)
-async def evolve_excuse_for_spring(
-    request: SpringEvolveRequest,
-    http_request: Request,
-    service: GenerationService,
-) -> SpringExcuseResponse:
-    """Spring이 조회한 기존 변명과 ``direction``을 바탕으로 수정안을 만든다.
-
-    FastAPI는 DB에서 원문을 찾지 않는다. Spring이 조회한 currentExcuse와 현재 대화
-    가지를 요청에 넣어야 문맥을 유지한 수정이 가능하다.
-    """
-    return await _generate_response(
-        request.to_generate_request(), http_request, service
-    )
-
-
-@app.post(
     "/internal/v1/excuses/reply",
     response_model=SpringExcuseResponse,
     dependencies=InternalOnly,
@@ -242,7 +219,7 @@ async def generate_excuse(
 ) -> SpringExcuseResponse:
     """기존 클라이언트를 위한 mode 기반 호환 엔드포인트.
 
-    신규 Spring 코드는 create/evolve/reply 전용 URL을 쓰는 편이 입력 계약이 명확하다.
+    신규 Spring 코드는 create/reply 전용 URL을 쓰는 편이 입력 계약이 명확하다.
     이 URL은 이전 통합을 깨지 않기 위한 호환 계층으로만 유지한다.
     """
     return await _generate_response(request, http_request, service)

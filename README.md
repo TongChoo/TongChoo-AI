@@ -5,13 +5,13 @@ FastAPI calls Cerebras and returns a strict JSON response.
 
 ## Responsibilities
 
-- create/evolve/reply prompt construction
+- create/reply prompt construction
 - Cerebras `gpt-oss-120b` chat completion
 - non-streaming Structured Outputs JSON schema validation
 - request-ID based logging
 - no direct database access
 
-Spring remains responsible for authentication, DB memory queries, parent/reply
+Spring remains responsible for authentication, DB memory queries, reply
 lineage, XP/grade rules, ERD persistence, and the final domain transaction. See
 [SPRING_INTEGRATION.md](./SPRING_INTEGRATION.md) for the exact integration contract.
 
@@ -23,6 +23,13 @@ source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 uvicorn app.main:app --reload --port 8001
+```
+
+## Test
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
 ```
 
 Set `CEREBRAS_API_KEY` before calling a generation endpoint. `/health` only checks
@@ -39,17 +46,27 @@ The default generation policy is:
 
 ### REPLY quality gate
 
-For `REPLY`, the server verifies that the generated `excuse` is substantive,
-responds to `incomingMessage`, and is not at least 70% similar to a previous
-assistant reply in the supplied conversation. It also requires exactly three
-distinct `replyOptions`: a short direct reply, a polite responsibility-and-action
-reply, and a lighter relationship-repair reply.
+For `REPLY`, the server compares the generated main answer and candidates with
+the previous assistant turns and with each other. The default similarity limit
+is 0.9 and can be changed with `REPLY_SIMILARITY_THRESHOLD`. Clear why/when/how
+questions are also checked for a corresponding reason, time, or action answer.
 
-When a result fails these checks, FastAPI regenerates it once with the rejected
-wording supplied as negative context. If the replacement still fails, it returns
-HTTP 422 with `REPLY_QUALITY_REPEATED` or `REPLY_QUALITY_FAILED`. Spring should
+When a result fails these checks, FastAPI regenerates it once by default with the
+rejection reasons supplied as correction context. The number of quality attempts
+is controlled by `REPLY_QUALITY_MAX_ATTEMPTS`. If the final replacement still
+fails, it returns HTTP 422 with `REPLY_QUALITY_REJECTED`. Spring should
 send the current conversation branch on every REPLY call so prior answers can be
 compared.
+
+### Aftermath quality gate
+
+`aftermath[].question` must be a direct question that probes a claim, cause,
+time, evidence, promise, or contradiction in the generated `excuse`. Generic
+work follow-ups such as asking for the meeting agenda or the next schedule are
+rejected. CREATE regenerates an invalid aftermath up to
+`AFTERMATH_QUALITY_MAX_ATTEMPTS`; REPLY applies the same aftermath validation as
+part of its reply quality gate. Final CREATE failure returns HTTP 422 with
+`AFTERMATH_QUALITY_REJECTED`.
 
 ## Internal API
 
@@ -57,7 +74,6 @@ Spring should call one of these endpoints:
 
 ```text
 POST /internal/v1/excuses/create
-POST /internal/v1/excuses/evolve
 POST /internal/v1/excuses/reply
 ```
 
@@ -72,19 +88,6 @@ only at `/internal/v1/excuses/generate/raw` for diagnostics.
   "situation": "팀 회의에 20분 늦었다",
   "target": "TEAM_LEAD",
   "tone": "MILD"
-}
-```
-
-### Evolve
-
-```json
-{
-  "situation": "팀 회의에 20분 늦었다",
-  "target": "TEAM_LEAD",
-  "tone": "MILD",
-  "currentExcuse": "회의 시작 시간을 잘못 봐서 20분 늦었어요.",
-  "direction": "더 짧고 책임감 있게",
-  "roundNumber": 2
 }
 ```
 
@@ -113,7 +116,7 @@ The Spring-facing response matches the Java client contract: `excuse`,
 `replyOptions`, score fields, `suspicionLevel`, `riskFactors`,
 `rememberItems`, and `aftermaths`. `replyOptions` keeps the generated order:
 short/direct, polite/responsible, then light relationship-repair wording.
-IDs, parent IDs, XP, complexity warnings, and timestamps remain Spring-owned
+IDs, reply lineage, XP, complexity warnings, and timestamps remain Spring-owned
 fields.
 
 Set `INTERNAL_SERVICE_TOKEN` in deployed environments. Spring sends it as

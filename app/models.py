@@ -43,6 +43,7 @@ class Target(StrEnum):
     LOVER = "LOVER"
     TEAM_LEAD = "TEAM_LEAD"
     TEAM_MEMBER = "TEAM_MEMBER"
+    CUSTOM = "CUSTOM"
 
 
 class Tone(StrEnum):
@@ -66,7 +67,6 @@ class GenerationMode(StrEnum):
     """
 
     CREATE = "CREATE"
-    EVOLVE = "EVOLVE"
     REPLY = "REPLY"
 
 
@@ -199,18 +199,19 @@ class ExcuseResult(BaseModel):
 class GenerateRequest(BaseModel):
     """모든 생성 엔드포인트가 사용하는 내부 표준 요청 모델.
 
-    Spring 전용 create/evolve/reply DTO는 URL마다 친숙한 입력 필드명을 유지하고, 실제
+    Spring 전용 create/reply DTO는 URL마다 친숙한 입력 필드명을 유지하고, 실제
     프롬프트·LLM 계층에는 이 모델 하나만 전달한다. 생성 규칙을 모드별 URL에 중복하지
     않기 위한 어댑터 경계다.
     """
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    # CREATE의 선택 입력까지 하나의 모델로 표현한다. EVOLVE/REPLY에서만 필요한 값은
+    # CREATE의 선택 입력까지 하나의 모델로 표현한다. REPLY에서만 필요한 값은
     # 아래 model_validator가 조건부로 검사한다.
     mode: GenerationMode = GenerationMode.CREATE
     situation: Annotated[str, Field(min_length=1, max_length=4000)]
     target: Target
+    targetDescription: Annotated[str | None, Field(default=None, max_length=100)]
     tone: Tone
     memory: Annotated[str, Field(default="", max_length=12000)]
     rootExcuse: Annotated[
@@ -227,16 +228,6 @@ class GenerateRequest(BaseModel):
     ]
     # 원격 협업 정책에 맞춰 답장 라운드는 최대 5회로 제한한다.
     roundNumber: Annotated[int | None, Field(default=None, ge=1, le=5)]
-    evolveDirection: Annotated[
-        str | None,
-        Field(
-            default=None,
-            min_length=1,
-            max_length=300,
-            validation_alias=AliasChoices("evolveDirection", "direction"),
-        ),
-    ]
-
     @model_validator(mode="after")
     def validate_mode_context(self) -> "GenerateRequest":
         """작업 모드별로 AI가 최소한 알아야 할 문맥을 강제한다.
@@ -244,8 +235,10 @@ class GenerateRequest(BaseModel):
         이 검증을 API 경계에서 끝내면 prompts.py가 누락값을 추측하거나 LLM이 문맥 없이
         답하도록 두지 않아도 된다.
         """
-        if self.mode == GenerationMode.EVOLVE and not self.currentExcuse:
-            raise ValueError("EVOLVE 모드에는 currentExcuse가 필요합니다.")
+        if self.target == Target.CUSTOM and not (
+            self.targetDescription and self.targetDescription.strip()
+        ):
+            raise ValueError("CUSTOM 대상에는 targetDescription이 필요합니다.")
 
         if self.mode == GenerationMode.REPLY:
             if not self.incomingMessage:
@@ -261,7 +254,7 @@ class GenerateRequest(BaseModel):
 class SpringContextRequest(BaseModel):
     """Spring이 DB에서 조회해 내부 AI 요청에 덧붙이는 공통 문맥.
 
-    FastAPI는 DB에 접근하지 않으므로 evolve/reply 요청의 기존 변명·대화 계보는
+    FastAPI는 DB에 접근하지 않으므로 reply 요청의 기존 변명·대화 계보는
     반드시 Spring이 이 모델의 필드로 전달해야 한다.
     """
 
@@ -271,10 +264,11 @@ class SpringContextRequest(BaseModel):
 
     situation: Annotated[str, Field(min_length=1, max_length=4000)]
     target: Target
+    targetDescription: Annotated[str | None, Field(default=None, max_length=100)]
     tone: Tone
     memory: Annotated[str, Field(default="", max_length=12000)]
     # Spring은 DB에서 선택한 현재 가지의 문맥을 이 필드들로 전달한다. 전용
-    # create/evolve/reply DTO가 모두 이 공통 기반 모델을 쓰므로, 여기서 선언해야
+    # create/reply DTO가 모두 이 공통 기반 모델을 쓰므로, 여기서 선언해야
     # FastAPI가 `extra=forbid`로 정상적인 REPLY 문맥을 거부하지 않는다.
     rootExcuse: Annotated[
         str | None, Field(default=None, min_length=1, max_length=1000)
@@ -289,12 +283,20 @@ class SpringContextRequest(BaseModel):
     # GenerateRequest와 같은 1~5 범위를 적용해 두 API 계약이 달라지지 않게 한다.
     roundNumber: Annotated[int | None, Field(default=None, ge=1, le=5)]
 
+    @model_validator(mode="after")
+    def validate_custom_target(self) -> "SpringContextRequest":
+        """직접 입력 대상을 선택했다면 실제 관계 설명도 함께 받아야 한다."""
+        if self.target == Target.CUSTOM and not (
+            self.targetDescription and self.targetDescription.strip()
+        ):
+            raise ValueError("CUSTOM 대상에는 targetDescription이 필요합니다.")
+        return self
+
     def to_generate_request(
         self,
         mode: GenerationMode,
         *,
         incoming_message: str | None = None,
-        evolve_direction: str | None = None,
     ) -> GenerateRequest:
         """전용 Spring 엔드포인트 요청을 내부 표준 요청으로 통일한다.
 
@@ -305,6 +307,7 @@ class SpringContextRequest(BaseModel):
             mode=mode,
             situation=self.situation,
             target=self.target,
+            targetDescription=self.targetDescription.strip() if self.targetDescription else None,
             tone=self.tone,
             memory=self.memory,
             rootExcuse=self.rootExcuse,
@@ -312,7 +315,6 @@ class SpringContextRequest(BaseModel):
             currentExcuse=self.currentExcuse,
             incomingMessage=incoming_message,
             roundNumber=self.roundNumber,
-            evolveDirection=evolve_direction,
         )
 
 
@@ -325,30 +327,6 @@ class SpringCreateRequest(SpringContextRequest):
     # 공통 문맥만으로 충분하므로 추가 필드가 없다. pass를 남기는 이유는 FastAPI
     # OpenAPI에서 CREATE 요청의 의미 있는 이름을 유지하기 위해서다.
     pass
-
-
-class SpringEvolveRequest(SpringContextRequest):
-    """Spring의 기존 ``direction`` 필드명을 그대로 쓰는 변명 수정 요청."""
-
-    direction: Annotated[str, Field(min_length=1, max_length=300)]
-
-    @model_validator(mode="after")
-    def validate_evolve_context(self) -> "SpringEvolveRequest":
-        """원문 변명이 없으면 수정 방향만으로 일관된 결과를 만들 수 없다."""
-        if not self.currentExcuse:
-            raise ValueError("변명 수정에는 currentExcuse가 필요합니다.")
-        return self
-
-    def to_generate_request(self) -> GenerateRequest:
-        """Spring의 direction을 내부 evolveDirection으로 옮긴다.
-
-        내부 모델은 필드 의미를 명확히 하기 위해 evolveDirection을 쓰지만, 기존 Java
-        클라이언트의 JSON 계약은 바꾸지 않는다.
-        """
-        return super().to_generate_request(
-            GenerationMode.EVOLVE,
-            evolve_direction=self.direction,
-        )
 
 
 class SpringReplyRequest(SpringContextRequest):

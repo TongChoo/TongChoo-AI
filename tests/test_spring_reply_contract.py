@@ -118,6 +118,51 @@ class SpringReplyContractTests(unittest.TestCase):
             "그래서 오늘 일정은 어떻게 할 건가요?",
         )
 
+    def test_removed_evolve_endpoint_is_not_exposed(self) -> None:
+        """삭제된 기능의 내부 API가 실수로 다시 노출되지 않는지 검증한다."""
+        response = self.client.post(
+            "/internal/v1/excuses/evolve",
+            json={
+                "situation": "팀 회의에 늦었다",
+                "target": "TEAM_LEAD",
+                "tone": "MILD",
+                "currentExcuse": "회의에 늦었습니다.",
+                "direction": "더 짧게",
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_custom_target_description_is_preserved(self) -> None:
+        response = self.client.post(
+            "/internal/v1/excuses/create",
+            json={
+                "situation": "약속 시간에 늦었다",
+                "target": "CUSTOM",
+                "targetDescription": "같은 프로젝트를 진행하는 친한 선배",
+                "tone": "MILD",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(self.service.request.target.value, "CUSTOM")
+        self.assertEqual(
+            self.service.request.targetDescription,
+            "같은 프로젝트를 진행하는 친한 선배",
+        )
+
+    def test_custom_target_without_description_is_rejected(self) -> None:
+        response = self.client.post(
+            "/internal/v1/excuses/create",
+            json={
+                "situation": "약속 시간에 늦었다",
+                "target": "CUSTOM",
+                "tone": "MILD",
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+
 
 if __name__ == "__main__":
     unittest.main()
