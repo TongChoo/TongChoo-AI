@@ -207,13 +207,10 @@ class ExcuseResult(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    # excuse는 사용자가 바로 복사해 보낼 기본안이다. 추천 행동·예상 질문·후보 답장은
-    # 서비스가 품질을 설명하거나 다음 상호작용을 준비하는 데 쓰는 보조 결과다.
-    # 답변 본문이 짧아도 부가 분석 실패로 전체 요청을 버리지 않는다.
+    # excuse는 품질 검사에 쓰는 대표 문장이며 replyOptions[0]과 같은 문장이다.
+    # UI가 실제로 제공하는 후보 계약은 정확히 세 문장으로 고정한다.
     excuse: Annotated[str, Field(min_length=1, max_length=1000)]
-    recommendedAction: Annotated[str, Field(min_length=1, max_length=300)]
-    likelyFollowUp: Annotated[str, Field(min_length=1, max_length=300)]
-    replyOptions: Annotated[list[str], Field(min_length=2, max_length=3)]
+    replyOptions: Annotated[list[str], Field(min_length=3, max_length=3)]
     # 수치 필드는 임의의 정규화된 범위를 사용한다. Pydantic이 범위를 강제해 제공자의
     # "120점" 같은 비정상 값을 Spring에 전달하지 않는다.
     successRate: Annotated[int, Field(ge=0, le=100)]
@@ -466,7 +463,7 @@ class SpringExcuseResponse(BaseModel):
     # REPLY UI는 세 후보의 순서 자체에 의미가 있다. Spring이 Item으로 재구성하면
     # 복사해 보낼 문장 API가 불필요하게 복잡해지므로, 생성 순서를 유지한 문자열 목록을
     # 그대로 전달한다.
-    replyOptions: Annotated[list[str], Field(min_length=2, max_length=3)]
+    replyOptions: Annotated[list[str], Field(min_length=3, max_length=3)]
     riskFactors: Annotated[list[SpringItem], Field(max_length=5)]
     rememberItems: Annotated[list[SpringItem], Field(max_length=8)]
     aftermaths: Annotated[list[SpringAftermath], Field(max_length=4)]
@@ -483,7 +480,7 @@ class SpringExcuseResponse(BaseModel):
         LLM이 순서를 반환하므로 여기서 임의로 정렬하지 않는다.
         """
         return cls(
-            excuse=result.excuse,
+            excuse=result.replyOptions[0],
             successRate=result.successRate,
             realism=result.realism,
             persuasion=result.persuasion,
@@ -518,8 +515,6 @@ LLM_RESULT_SCHEMA = {
     "type": "object",
     "properties": {
         "excuse": {"type": "string"},
-        "recommendedAction": {"type": "string"},
-        "likelyFollowUp": {"type": "string"},
         "replyOptions": {
             "type": "array",
             "items": {"type": "string"},
@@ -556,8 +551,6 @@ LLM_RESULT_SCHEMA = {
     },
     "required": [
         "excuse",
-        "recommendedAction",
-        "likelyFollowUp",
         "replyOptions",
         "successRate",
         "realism",

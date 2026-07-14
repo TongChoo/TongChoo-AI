@@ -240,7 +240,7 @@ class ExcuseGenerationService:
         request: GenerateRequest,
     ) -> list[str]:
         issues: list[str] = []
-        candidates = [result.excuse, *result.replyOptions]
+        candidates = result.replyOptions
         normalized_candidates = [_normalize_text(candidate) for candidate in candidates]
 
         for left_index, left in enumerate(normalized_candidates):
@@ -523,7 +523,7 @@ def validate_grounding(
     """입력에 없던 시간 약속과 흔한 가짜 원인을 명백한 범위에서 탐지한다."""
     issues: list[str] = []
     source = request.situation.strip()
-    candidates = [result.excuse, *result.replyOptions]
+    candidates = result.replyOptions
     for candidate in candidates:
         output_times = set(_TIME_TOKEN_PATTERN.findall(candidate))
         if any(time_token not in source for time_token in output_times):

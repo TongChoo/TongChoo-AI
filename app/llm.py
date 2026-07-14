@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from contextvars import ContextVar, Token
 from typing import Any
 
 import httpx
@@ -30,6 +31,32 @@ logger = logging.getLogger("tongchoo.ai")
 # 장애다. 인증, 결제, 안전성 거절처럼 설정 또는 사용자 입력을 바꿔야 하는 오류는
 # 재시도 대상에 넣지 않는다.
 RETRYABLE_STATUS_CODES = frozenset({408, 429, 500, 502, 503, 504})
+_remaining_provider_attempts: ContextVar[int | None] = ContextVar(
+    "remaining_provider_attempts",
+    default=None,
+)
+
+
+def set_provider_attempt_budget(max_attempts: int) -> Token:
+    """현재 요청이 모든 재시도 계층을 합쳐 사용할 외부 호출 횟수를 설정한다."""
+    return _remaining_provider_attempts.set(max_attempts)
+
+
+def reset_provider_attempt_budget(token: Token) -> None:
+    _remaining_provider_attempts.reset(token)
+
+
+def _consume_provider_attempt() -> None:
+    remaining = _remaining_provider_attempts.get()
+    if remaining is None:
+        return
+    if remaining <= 0:
+        raise api_error(
+            503,
+            "LLM_ATTEMPT_LIMIT_REACHED",
+            "AI 재시도 상한에 도달했습니다.",
+        )
+    _remaining_provider_attempts.set(remaining - 1)
 
 
 def api_error(status_code: int, code: str, message: str) -> HTTPException:
@@ -131,6 +158,7 @@ class CerebrasClient:
                         user_prompt,
                         completion_tokens,
                     )
+                    _consume_provider_attempt()
                     response = await client.post(
                         self.endpoint,
                         headers=headers,
@@ -273,6 +301,7 @@ class CerebrasClient:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             for attempt in range(max_attempts):
                 try:
+                    _consume_provider_attempt()
                     response = await client.post(
                         self.endpoint,
                         headers=headers,
@@ -511,26 +540,12 @@ class CerebrasClient:
         )[:1000]
         options = payload.get("replyOptions") or payload.get("reply_options")
         if not isinstance(options, list):
-            options = [excuse, excuse]
-        options = [str(item).strip()[:200] for item in options if str(item).strip()]
-        while len(options) < 2:
-            options.append(excuse)
+            options = []
+        options = CerebrasClient._ensure_three_options(excuse, options)
 
         normalized = {
             "excuse": excuse,
-            "recommendedAction": (
-                CerebrasClient._first_text(
-                    payload, "recommendedAction", "recommended_action"
-                )
-                or "상대에게 현재 상황을 짧게 설명하고 바로 확인한다."
-            )[:300],
-            "likelyFollowUp": (
-                CerebrasClient._first_text(
-                    payload, "likelyFollowUp", "likely_follow_up"
-                )
-                or "그래서 지금 어떻게 할 건데?"
-            )[:300],
-            "replyOptions": options[:3],
+            "replyOptions": options,
             "successRate": CerebrasClient._bounded_int(payload.get("successRate", payload.get("success_rate", 50)), 0, 100, 50),
             "realism": CerebrasClient._bounded_int(payload.get("realism", 3), 1, 5, 3),
             "persuasion": CerebrasClient._bounded_int(payload.get("persuasion", 3), 1, 5, 3),
@@ -554,9 +569,7 @@ class CerebrasClient:
         excuse = content.strip()[:1000] or "응답을 확인했습니다."
         return ExcuseResult(
             excuse=excuse,
-            recommendedAction="상대에게 현재 상황을 짧게 설명하고 바로 확인한다.",
-            likelyFollowUp="그래서 지금 어떻게 할 건데?",
-            replyOptions=[excuse, excuse],
+            replyOptions=CerebrasClient._ensure_three_options(excuse, []),
             successRate=50,
             realism=3,
             persuasion=3,
@@ -570,6 +583,25 @@ class CerebrasClient:
             }],
             remember=[],
         )
+
+    @staticmethod
+    def _ensure_three_options(excuse: str, raw_options: list[Any]) -> list[str]:
+        """깨진 제공자 응답도 서로 다른 후보 세 개라는 API 계약으로 복구한다."""
+        candidates = [
+            *(str(item).strip()[:200] for item in raw_options if str(item).strip()),
+            excuse[:200],
+            f"{excuse[:170]} 우선 상황부터 확인할게요.",
+            f"{excuse[:170]} 확인한 뒤 다시 말씀드릴게요.",
+            "우선 상황부터 확인해서 말씀드릴게요.",
+            "확인한 내용을 정리해서 다시 알려드릴게요.",
+        ]
+        unique: list[str] = []
+        for candidate in candidates:
+            if candidate and candidate not in unique:
+                unique.append(candidate)
+            if len(unique) == 3:
+                return unique
+        return unique
 
     @staticmethod
     def _first_text(payload: dict[str, Any], *keys: str) -> str | None:

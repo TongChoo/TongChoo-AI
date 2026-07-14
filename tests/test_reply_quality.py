@@ -22,11 +22,12 @@ from app.service import ExcuseGenerationService, _latest_message_relevance_issue
 
 
 def result(excuse: str, options: list[str]) -> ExcuseResult:
+    normalized_options = [*options]
+    while len(normalized_options) < 3:
+        normalized_options.append(excuse)
     return ExcuseResult(
         excuse=excuse,
-        recommendedAction="바로 수정한다.",
-        likelyFollowUp="언제 올릴 수 있어?",
-        replyOptions=options,
+        replyOptions=normalized_options[:3],
         successRate=60,
         realism=4,
         persuasion=4,

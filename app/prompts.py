@@ -136,10 +136,11 @@ user prompt의 SITUATION_PROFILE을 따른다.
 모범답안, 고객센터 답변, 공문, 상담 조언처럼 쓰지 않는다.
 상황의 원인이 명시되지 않았다면 그럴듯한 원인을 발명하지 말고, 사실 인정과 다음 행동에 집중한다.
 이유가 있다면 하나만 사용한다. 책임을 무조건 길게 고백하지 말고 상황과 대상에 맞게 조절한다.
-각 replyOptions는 같은 사실을 유지하되 실제로 선택할 만한 서로 다른 표현이어야 한다.
+replyOptions는 같은 사실을 유지하되 실제로 선택할 만한 서로 다른 표현이어야 한다.
+excuse는 replyOptions의 첫 번째 문장과 정확히 같아야 한다.
 
 출력 JSON에는 다음 필드를 모두 넣는다.
-excuse, recommendedAction, likelyFollowUp, replyOptions, successRate, realism,
+excuse, replyOptions, successRate, realism,
 persuasion, suspicionLevel, riskFactors, aftermath, remember.
 replyOptions는 정확히 3개의 문자열, riskFactors는 1~5개 문자열,
 aftermath는 1~4개의 {when, dayOffset, question, collapseRate} 객체로 작성한다.
@@ -171,7 +172,7 @@ replyOptions는 정확히 3개다.
 세 문장을 단어만 바꾼 반복으로 만들지 말고, 모두 사과·책임·행동을 기계적으로 넣지 않는다.
 
 출력 JSON에는 다음 필드를 모두 넣는다.
-excuse, recommendedAction, likelyFollowUp, replyOptions, successRate, realism,
+excuse, replyOptions, successRate, realism,
 persuasion, suspicionLevel, riskFactors, aftermath, remember.
 replyOptions는 정확히 3개의 문자열, riskFactors는 1~5개 문자열,
 aftermath는 1~4개의 {when, dayOffset, question, collapseRate} 객체로 작성한다.
@@ -234,9 +235,8 @@ def build_reply_user_prompt(
 상황: {_safe_value(request.situation)}
 대상: {_target_context(request)}
 톤: {request.tone.value} — {REPLY_TONE_GUIDES[request.tone]}
-현재 답장: {_safe_value(request.currentExcuse)}
-원본 변명: {_safe_value(request.rootExcuse)}
-대화 기록:
+현재 선택된 답장: {_safe_value(request.currentExcuse)}
+그 이전 대화 기록:
 {_conversation_text(request)}
 </CONTEXT>
 

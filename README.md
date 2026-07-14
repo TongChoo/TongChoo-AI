@@ -39,7 +39,9 @@ The default generation policy is:
 
 - `stream=false`
 - `max_completion_tokens=1400`
-- at most 2 attempts
+- at most 2 attempts inside one provider operation
+- at most 4 provider calls across classification, quality regeneration, and retries
+- 18 seconds for the complete FastAPI request (Spring waits 20 seconds)
 - if the first response is truncated, retry once with 1800 tokens
 - `reasoning_effort=low`
 - `memory` maximum 12,000 characters
@@ -78,7 +80,7 @@ or claim a concrete impact absent from the input.
 
 ### REPLY quality gate
 
-For `REPLY`, the server compares the generated main answer and candidates with
+For `REPLY`, the server compares the three generated candidates with
 the previous assistant turns and with each other. The default similarity limit
 is 0.9 and can be changed with `REPLY_SIMILARITY_THRESHOLD`. Clear why/when/how
 questions are also checked for a corresponding reason, time, or action answer.
@@ -132,23 +134,23 @@ only at `/internal/v1/excuses/generate/raw` for diagnostics.
   "target": "TEAM_LEAD",
   "tone": "MILD",
   "situationSeverity": "NORMAL",
-  "rootExcuse": "회의 시작 시간을 잘못 봤어요.",
   "currentExcuse": "회의 시작 시간을 잘못 봐서 20분 늦었어요.",
   "incomingMessage": "그래도 왜 미리 말하지 않았어요?",
   "conversation": [
-    {"role": "assistant", "message": "회의 시작 시간을 잘못 봤어요."},
-    {"role": "user", "message": "그래도 왜 미리 말하지 않았어요?"}
+    {"role": "assistant", "message": "회의 시작 시간을 잘못 봤어요."}
   ],
   "roundNumber": 3
 }
 ```
 
-`conversation` is the current branch selected by Spring and accepts up to 10
-turns. `roundNumber` accepts 1~5 because the service limits reply preparation
+`conversation` contains only turns before `currentExcuse`; the latest incoming
+message is sent only as `incomingMessage`. This removes repeated prompt context
+and accepts up to 10 prior turns. `roundNumber` accepts 1~5 because the service limits reply preparation
 to five rounds.
 The Spring-facing response matches the Java client contract: `excuse`,
 `replyOptions`, score fields, `suspicionLevel`, `situationSeverity`, `riskFactors`,
-`rememberItems`, and `aftermaths`. `replyOptions` keeps the generated order:
+`rememberItems`, and `aftermaths`. `replyOptions` always contains exactly three
+distinct candidates and keeps the generated order:
 short/direct, polite/responsible, then light relationship-repair wording.
 IDs, reply lineage, XP, complexity warnings, and timestamps remain Spring-owned
 fields.

@@ -50,6 +50,20 @@ class Settings(BaseSettings):
     # 생성 품질·지연시간·비용 균형을 위한 재시도와 토큰 정책. max_attempts는 제공자
     # 네트워크/형식 오류 재시도 횟수이며, service.py의 REPLY 품질 재생성과는 별개다.
     max_attempts: int = Field(default=2, ge=1, le=3, alias="LLM_MAX_ATTEMPTS")
+    # 아래 품질 재생성과 제공자 내부 재시도가 중첩돼도 요청 하나가 Cerebras를 호출할
+    # 수 있는 총 횟수와 FastAPI 전체 처리 시간을 넘지 못하게 한다.
+    total_provider_attempts: int = Field(
+        default=4,
+        ge=1,
+        le=8,
+        alias="LLM_TOTAL_PROVIDER_ATTEMPTS",
+    )
+    request_timeout_seconds: float = Field(
+        default=18.0,
+        gt=0,
+        le=19.0,
+        alias="AI_REQUEST_TIMEOUT_SECONDS",
+    )
     reply_quality_max_attempts: int = Field(
         default=2,
         ge=1,

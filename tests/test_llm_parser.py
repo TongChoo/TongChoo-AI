@@ -3,7 +3,15 @@
 import json
 from types import SimpleNamespace
 
-from app.llm import CerebrasClient
+import pytest
+from fastapi import HTTPException
+
+from app.llm import (
+    CerebrasClient,
+    _consume_provider_attempt,
+    reset_provider_attempt_budget,
+    set_provider_attempt_budget,
+)
 
 
 def test_parser_keeps_excuse_when_optional_fields_are_missing() -> None:
@@ -24,7 +32,9 @@ def test_parser_keeps_excuse_when_optional_fields_are_missing() -> None:
     result = CerebrasClient._parse_result(body)
 
     assert result.excuse == "회의 시간을 잘못 봤어요. 지금 바로 들어갈게요."
-    assert result.replyOptions == [result.excuse, result.excuse]
+    assert len(result.replyOptions) == 3
+    assert len(set(result.replyOptions)) == 3
+    assert result.excuse in result.replyOptions
     assert result.successRate == 50
 
 
@@ -79,3 +89,18 @@ def test_classification_payload_uses_low_temperature_and_separate_schema() -> No
     assert payload["response_format"]["json_schema"]["name"] == "tongchoo_situation_profile_v1"
     schema = payload["response_format"]["json_schema"]["schema"]
     assert schema["properties"]["severity"]["enum"] == ["LIGHT", "NORMAL", "SERIOUS"]
+
+
+def test_provider_attempt_budget_caps_nested_retries() -> None:
+    token = set_provider_attempt_budget(2)
+    try:
+        _consume_provider_attempt()
+        _consume_provider_attempt()
+
+        with pytest.raises(HTTPException) as error:
+            _consume_provider_attempt()
+
+        assert error.value.status_code == 503
+        assert error.value.detail["code"] == "LLM_ATTEMPT_LIMIT_REACHED"
+    finally:
+        reset_provider_attempt_budget(token)

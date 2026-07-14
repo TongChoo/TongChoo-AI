@@ -49,9 +49,11 @@ def profile(severity: SituationSeverity) -> SituationProfile:
 def result(excuse: str) -> ExcuseResult:
     return ExcuseResult(
         excuse=excuse,
-        recommendedAction="바로 확인한다.",
-        likelyFollowUp="그래서 지금 어떻게 할 건데?",
-        replyOptions=["지금 확인하겠습니다.", "내용을 정리해 공유하겠습니다."],
+        replyOptions=[
+            excuse,
+            "지금 확인하겠습니다.",
+            "내용을 정리해 공유하겠습니다.",
+        ],
         successRate=60,
         realism=4,
         persuasion=4,
