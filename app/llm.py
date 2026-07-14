@@ -17,6 +17,7 @@ from pydantic import ValidationError
 
 from app.config import Settings
 from app.models import ExcuseResult, LLM_RESULT_SCHEMA
+from app.reply_quality import REPLY_JUDGE_SCHEMA, ReplyQualityVerdict
 
 logger = logging.getLogger("tongchoo.ai")
 
@@ -51,6 +52,14 @@ class _TruncatedResponse(Exception):
 
     일반 형식 오류와 달리 토큰 예산을 늘려 한 번 더 요청할 수 있으므로 별도 타입으로
     구분한다.
+    """
+
+
+class ReplyJudgeParseError(Exception):
+    """Judge 응답이 품질 판정 계약으로 읽히지 않을 때 사용하는 내부 예외.
+
+    생성 결과 본문은 관대한 파서로 보존할 수 있지만, Judge는 승인 근거이므로 형식을
+    해석하지 못하면 품질 실패로 처리한다.
     """
 
 
@@ -246,6 +255,65 @@ class CerebrasClient:
             502, "CEREBRAS_UNAVAILABLE", "Cerebras 요청을 완료하지 못했습니다."
         )
 
+    async def judge_reply(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        request_id: str,
+    ) -> ReplyQualityVerdict:
+        """한 번의 독립 Judge 호출로 REPLY 후보 품질을 판정한다.
+
+        Judge 자체를 재시도하면 후보 한 세트당 판정이 여러 번 달라질 수 있다.
+        따라서 JSON 파싱 실패만 서비스의 품질 재생성 경로에 맡기고, 연결·제공자
+        오류는 정상 운영 오류로 그대로 반환한다.
+        """
+        headers = {
+            "Authorization": f"Bearer {self.settings.cerebras_api_key}",
+            "Content-Type": "application/json",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(
+                    self.endpoint,
+                    headers=headers,
+                    json=self._build_judge_payload(system_prompt, user_prompt),
+                )
+        except (httpx.TimeoutException, httpx.NetworkError) as exc:
+            logger.warning("reply_judge_network_error request_id=%s", request_id)
+            raise api_error(
+                503,
+                "CEREBRAS_CONNECTION_ERROR",
+                "Cerebras에 연결할 수 없습니다.",
+            ) from exc
+        except httpx.HTTPError as exc:
+            logger.warning("reply_judge_http_error request_id=%s", request_id)
+            raise api_error(
+                503,
+                "CEREBRAS_CONNECTION_ERROR",
+                "Cerebras 요청을 완료하지 못했습니다.",
+            ) from exc
+
+        if response.status_code >= 400:
+            raise self._provider_error(response.status_code)
+
+        try:
+            verdict = self._parse_reply_quality(response.json())
+        except (ValidationError, json.JSONDecodeError, _ResponseParseError) as exc:
+            logger.warning(
+                "reply_judge_parse_error request_id=%s error=%s",
+                request_id,
+                type(exc).__name__,
+            )
+            raise ReplyJudgeParseError() from exc
+
+        logger.info(
+            "reply_judge_success request_id=%s diversity=%s duplicate=%s",
+            request_id,
+            verdict.diversityScore,
+            verdict.semanticDuplicate,
+        )
+        return verdict
+
     def _build_payload(
         self,
         system_prompt: str,
@@ -255,8 +323,8 @@ class CerebrasClient:
         """Cerebras OpenAI 호환 API가 요구하는 비스트리밍 JSON 요청 본문을 만든다.
 
         ``stream=False``로 두는 이유는 Spring이 부분 토큰이 아닌 하나의 결과를 저장하기
-        때문이다. Cerebras strict mode 요구사항에 맞춘 최소 스키마를 보내 일관된 JSON을
-        받고, 응답 파서는 예외적인 제공자 응답에도 방어적으로 동작한다.
+        때문이다. 최소 스키마는 제공하되 strict mode는 끄고, 모델이 자연스럽게 응답할
+        여지를 둔다. 누락·추가 필드는 응답 파서가 방어적으로 보완한다.
         """
         return {
             "model": self.settings.cerebras_model,
@@ -272,8 +340,34 @@ class CerebrasClient:
                 "type": "json_schema",
                 "json_schema": {
                     "name": "tongchoo_excuse_v1",
-                    "strict": True,
+                    "strict": False,
                     "schema": LLM_RESULT_SCHEMA,
+                },
+            },
+        }
+
+    def _build_judge_payload(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+    ) -> dict[str, Any]:
+        """Judge 전용의 느슨한 JSON Schema 요청 본문을 만든다."""
+        return {
+            "model": self.settings.cerebras_model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0,
+            "max_completion_tokens": self.settings.reply_judge_max_completion_tokens,
+            "stream": False,
+            "reasoning_effort": self.settings.reasoning_effort,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "tongchoo_reply_quality_v1",
+                    "strict": False,
+                    "schema": REPLY_JUDGE_SCHEMA,
                 },
             },
         }
@@ -364,6 +458,31 @@ class CerebrasClient:
             "remember": CerebrasClient._string_list(payload.get("remember"), []),
         }
         return ExcuseResult.model_validate(normalized)
+
+    @staticmethod
+    def _parse_reply_quality(body: Any) -> ReplyQualityVerdict:
+        """Judge의 JSON 본문을 내부 품질 판정 모델로 읽는다."""
+        if not isinstance(body, dict):
+            raise _ResponseParseError("judge response is not an object")
+        choices = body.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            raise _ResponseParseError("judge response has no choice")
+        choice = choices[0]
+        if choice.get("finish_reason") == "length":
+            raise _ResponseParseError("judge response was truncated")
+        message = choice.get("message")
+        if not isinstance(message, dict) or message.get("refusal"):
+            raise _ResponseParseError("judge message is unavailable")
+        content = message.get("content")
+        if isinstance(content, dict):
+            payload = content
+        elif isinstance(content, str) and content.strip():
+            payload = json.loads(content.strip())
+        else:
+            raise _ResponseParseError("judge content is empty")
+        if not isinstance(payload, dict):
+            raise _ResponseParseError("judge content is not an object")
+        return ReplyQualityVerdict.model_validate(payload)
 
     @staticmethod
     def _fallback_result(body: Any) -> ExcuseResult:

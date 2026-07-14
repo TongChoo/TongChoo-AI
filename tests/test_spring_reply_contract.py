@@ -118,20 +118,46 @@ class SpringReplyContractTests(unittest.TestCase):
             "그래서 오늘 일정은 어떻게 할 건가요?",
         )
 
-    def test_removed_evolve_endpoint_is_not_exposed(self) -> None:
-        """삭제된 기능의 내부 API가 실수로 다시 노출되지 않는지 검증한다."""
+    def test_evolve_context_keeps_custom_target_description(self) -> None:
+        """진화 요청도 최초 자연어 관계를 그대로 이어받는지 검증한다."""
         response = self.client.post(
             "/internal/v1/excuses/evolve",
             json={
-                "situation": "팀 회의에 늦었다",
-                "target": "TEAM_LEAD",
+                "situation": "회식 참석이 어렵습니다.",
+                "target": "CUSTOM",
+                "targetDescription": "회사 부장님",
                 "tone": "MILD",
-                "currentExcuse": "회의에 늦었습니다.",
+                "rootExcuse": "개인 사정이 있어 회식 참석이 어렵습니다.",
+                "currentExcuse": "개인 사정이 있어 회식 참석이 어렵습니다.",
+                "roundNumber": 1,
                 "direction": "더 짧게",
             },
         )
 
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(self.service.request.target.value, "CUSTOM")
+        self.assertEqual(self.service.request.targetDescription, "회사 부장님")
+        self.assertEqual(self.service.request.evolveDirection, "더 짧게")
+
+    def test_reply_context_keeps_custom_target_description(self) -> None:
+        response = self.client.post(
+            "/internal/v1/excuses/reply",
+            json={
+                "situation": "회식 참석이 어렵습니다.",
+                "target": "CUSTOM",
+                "targetDescription": "회사 부장님",
+                "tone": "MILD",
+                "rootExcuse": "개인 사정이 있어 회식 참석이 어렵습니다.",
+                "currentExcuse": "개인 사정이 있어 회식 참석이 어렵습니다.",
+                "roundNumber": 2,
+                "incomingMessage": "개인 사정이 뭔가요?",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(self.service.request.target.value, "CUSTOM")
+        self.assertEqual(self.service.request.targetDescription, "회사 부장님")
+        self.assertEqual(self.service.request.incomingMessage, "개인 사정이 뭔가요?")
 
     def test_custom_target_description_is_preserved(self) -> None:
         response = self.client.post(
@@ -157,6 +183,45 @@ class SpringReplyContractTests(unittest.TestCase):
             json={
                 "situation": "약속 시간에 늦었다",
                 "target": "CUSTOM",
+                "tone": "MILD",
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+
+    def test_non_custom_target_with_description_is_rejected(self) -> None:
+        response = self.client.post(
+            "/internal/v1/excuses/create",
+            json={
+                "situation": "팀 회의에 늦었다",
+                "target": "TEAM_LEAD",
+                "targetDescription": "회사 부장님",
+                "tone": "MILD",
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+
+    def test_non_custom_target_with_blank_description_is_rejected(self) -> None:
+        response = self.client.post(
+            "/internal/v1/excuses/create",
+            json={
+                "situation": "팀 회의에 늦었다",
+                "target": "TEAM_LEAD",
+                "targetDescription": "",
+                "tone": "MILD",
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+
+    def test_custom_target_over_100_characters_is_rejected(self) -> None:
+        response = self.client.post(
+            "/internal/v1/excuses/create",
+            json={
+                "situation": "약속 시간에 늦었다",
+                "target": "CUSTOM",
+                "targetDescription": "가" * 101,
                 "tone": "MILD",
             },
         )

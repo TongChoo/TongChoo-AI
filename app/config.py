@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     reply_quality_max_attempts: int = Field(
         default=2,
         ge=1,
-        le=3,
+        le=2,
         alias="REPLY_QUALITY_MAX_ATTEMPTS",
     )
     aftermath_quality_max_attempts: int = Field(
@@ -63,10 +63,41 @@ class Settings(BaseSettings):
         alias="AFTERMATH_QUALITY_MAX_ATTEMPTS",
     )
     reply_similarity_threshold: float = Field(
-        default=0.9,
+        # 같은 핵심 사실을 반복하는 답장은 2라운드에서 자연스럽게 생길 수 있다.
+        # 문장 전체가 거의 같은 경우만 중복으로 보도록 보수적으로 둔다.
+        default=0.92,
         ge=0.7,
         le=1.0,
         alias="REPLY_SIMILARITY_THRESHOLD",
+    )
+    # Judge 점수는 생성 품질을 보조하는 신호다. 짧은 메신저 답장은 길고 완결된 문장보다
+    # 낮게 채점되기 쉬우므로, 사실 발명·격식 위반 같은 hardViolation과 구분해 완화된
+    # 기준을 둔다.
+    reply_candidate_min_score: int = Field(
+        default=65,
+        ge=0,
+        le=100,
+        alias="REPLY_CANDIDATE_MIN_SCORE",
+    )
+    reply_diversity_min_score: int = Field(
+        default=55,
+        ge=0,
+        le=100,
+        alias="REPLY_DIVERSITY_MIN_SCORE",
+    )
+    # 공개할 근거가 없어 정중히 선을 그어야 하는 질문은 세 후보가 같은 결론을 공유할
+    # 수밖에 없다. 이 경우에는 표현·대화 역할의 차이만 있어도 통과할 수 있게 둔다.
+    reply_privacy_diversity_min_score: int = Field(
+        default=40,
+        ge=0,
+        le=100,
+        alias="REPLY_PRIVACY_DIVERSITY_MIN_SCORE",
+    )
+    # Judge의 구조화 응답이 제공자 문제로 일부 누락돼도, 결정적 안전 검사를 통과한
+    # 실제 답장까지 버리지 않도록 한다. Judge가 완전한 판정을 준 경우에는 계속 적용된다.
+    reply_judge_fail_open: bool = Field(
+        default=True,
+        alias="REPLY_JUDGE_FAIL_OPEN",
     )
     max_completion_tokens: int = Field(
         default=1400,
@@ -77,6 +108,11 @@ class Settings(BaseSettings):
         default=1800,
         ge=1,
         alias="LLM_LENGTH_RETRY_COMPLETION_TOKENS",
+    )
+    reply_judge_max_completion_tokens: int = Field(
+        default=700,
+        ge=1,
+        alias="REPLY_JUDGE_MAX_COMPLETION_TOKENS",
     )
     # temperature는 같은 문맥의 표현 다양성을 조절한다. 너무 낮으면 REPLY가 반복되기
     # 쉽고, 너무 높으면 사실 일관성이 떨어질 수 있어 기본값을 중간 수준으로 둔다.

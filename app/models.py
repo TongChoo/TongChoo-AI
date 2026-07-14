@@ -68,6 +68,7 @@ class GenerationMode(StrEnum):
 
     CREATE = "CREATE"
     REPLY = "REPLY"
+    EVOLVE = "EVOLVE"
 
 
 class ConversationRole(StrEnum):
@@ -226,6 +227,7 @@ class GenerateRequest(BaseModel):
     incomingMessage: Annotated[
         str | None, Field(default=None, min_length=1, max_length=2000)
     ]
+    evolveDirection: Annotated[str | None, Field(default=None, min_length=1, max_length=100)]
     # 원격 협업 정책에 맞춰 답장 라운드는 최대 5회로 제한한다.
     roundNumber: Annotated[int | None, Field(default=None, ge=1, le=5)]
     @model_validator(mode="after")
@@ -235,10 +237,13 @@ class GenerateRequest(BaseModel):
         이 검증을 API 경계에서 끝내면 prompts.py가 누락값을 추측하거나 LLM이 문맥 없이
         답하도록 두지 않아도 된다.
         """
-        if self.target == Target.CUSTOM and not (
-            self.targetDescription and self.targetDescription.strip()
-        ):
+        has_target_description = self.targetDescription is not None
+        description = self.targetDescription.strip() if self.targetDescription else None
+        if self.target == Target.CUSTOM and not description:
             raise ValueError("CUSTOM 대상에는 targetDescription이 필요합니다.")
+        if self.target != Target.CUSTOM and has_target_description:
+            raise ValueError("CUSTOM이 아닌 대상에는 targetDescription을 보낼 수 없습니다.")
+        self.targetDescription = description
 
         if self.mode == GenerationMode.REPLY:
             if not self.incomingMessage:
@@ -247,6 +252,12 @@ class GenerateRequest(BaseModel):
                 raise ValueError(
                     "REPLY 모드에는 currentExcuse, rootExcuse, conversation 중 하나가 필요합니다."
                 )
+
+        if self.mode == GenerationMode.EVOLVE:
+            if not self.evolveDirection:
+                raise ValueError("EVOLVE 모드에는 evolveDirection이 필요합니다.")
+            if not (self.currentExcuse or self.rootExcuse):
+                raise ValueError("EVOLVE 모드에는 currentExcuse 또는 rootExcuse가 필요합니다.")
 
         return self
 
@@ -286,10 +297,13 @@ class SpringContextRequest(BaseModel):
     @model_validator(mode="after")
     def validate_custom_target(self) -> "SpringContextRequest":
         """직접 입력 대상을 선택했다면 실제 관계 설명도 함께 받아야 한다."""
-        if self.target == Target.CUSTOM and not (
-            self.targetDescription and self.targetDescription.strip()
-        ):
+        has_target_description = self.targetDescription is not None
+        description = self.targetDescription.strip() if self.targetDescription else None
+        if self.target == Target.CUSTOM and not description:
             raise ValueError("CUSTOM 대상에는 targetDescription이 필요합니다.")
+        if self.target != Target.CUSTOM and has_target_description:
+            raise ValueError("CUSTOM이 아닌 대상에는 targetDescription을 보낼 수 없습니다.")
+        self.targetDescription = description
         return self
 
     def to_generate_request(
@@ -297,6 +311,7 @@ class SpringContextRequest(BaseModel):
         mode: GenerationMode,
         *,
         incoming_message: str | None = None,
+        evolve_direction: str | None = None,
     ) -> GenerateRequest:
         """전용 Spring 엔드포인트 요청을 내부 표준 요청으로 통일한다.
 
@@ -314,6 +329,7 @@ class SpringContextRequest(BaseModel):
             conversation=self.conversation,
             currentExcuse=self.currentExcuse,
             incomingMessage=incoming_message,
+            evolveDirection=evolve_direction,
             roundNumber=self.roundNumber,
         )
 
@@ -352,6 +368,24 @@ class SpringReplyRequest(SpringContextRequest):
         return super().to_generate_request(
             GenerationMode.REPLY,
             incoming_message=self.incomingMessage,
+        )
+
+
+class SpringEvolveRequest(SpringContextRequest):
+    """Spring의 기존 변명 진화 요청을 내부 표준 요청으로 바꾼다."""
+
+    direction: Annotated[str, Field(min_length=1, max_length=100)]
+
+    @model_validator(mode="after")
+    def validate_evolve_context(self) -> "SpringEvolveRequest":
+        if not (self.currentExcuse or self.rootExcuse):
+            raise ValueError("변명 진화에는 currentExcuse 또는 rootExcuse가 필요합니다.")
+        return self
+
+    def to_generate_request(self) -> GenerateRequest:
+        return super().to_generate_request(
+            GenerationMode.EVOLVE,
+            evolve_direction=self.direction,
         )
 
 

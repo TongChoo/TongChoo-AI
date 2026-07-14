@@ -2,6 +2,8 @@
 
 from app.models import GenerateRequest, GenerationMode, Target, Tone
 from app.prompts import (
+    build_reply_judge_system_prompt,
+    build_reply_judge_user_prompt,
     build_reply_system_prompt,
     build_reply_user_prompt,
     build_system_prompt,
@@ -67,3 +69,34 @@ def test_custom_target_description_is_included_as_relationship_context() -> None
 
     assert "CUSTOM" in user_prompt
     assert "같은 프로젝트를 진행하는 친한 선배" in user_prompt
+
+
+def test_formal_custom_relationship_is_passed_to_reply_and_judge_prompts() -> None:
+    request = GenerateRequest(
+        mode=GenerationMode.REPLY,
+        situation="회식 참석이 어렵습니다.",
+        target=Target.CUSTOM,
+        targetDescription="회사 부장님",
+        tone=Tone.MILD,
+        rootExcuse="개인 사정이 있어 회식 참석이 어렵습니다.",
+        currentExcuse="개인 사정이 있어 회식 참석이 어렵습니다.",
+        incomingMessage="개인 사정이 뭔가요?",
+        roundNumber=2,
+    )
+
+    reply_prompt = build_reply_system_prompt()
+    judge_system_prompt = build_reply_judge_system_prompt()
+    judge_user_prompt = build_reply_judge_user_prompt(
+        request,
+        [
+            "개인적인 부분이라 자세히 말씀드리기 어렵습니다. 양해 부탁드립니다.",
+            "사적인 사유라 구체적으로 말씀드리기 어려운 점 이해 부탁드립니다.",
+            "이번 회식 참석은 어렵습니다. 개인적인 부분은 자세히 말씀드리기 어렵습니다.",
+        ],
+    )
+
+    assert "회사 부장님" in judge_user_prompt
+    assert "공식 관계" in judge_user_prompt
+    assert "상세 요구" in judge_user_prompt
+    assert "이모지·농담·가벼운 회피" in reply_prompt
+    assert "candidateScores" in judge_system_prompt

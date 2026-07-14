@@ -19,6 +19,7 @@ from app.models import (
     GenerationMode,
     GenerateRequest,
     SpringCreateRequest,
+    SpringEvolveRequest,
     SpringExcuseResponse,
     SpringReplyRequest,
 )
@@ -200,6 +201,24 @@ async def reply_to_excuse_for_spring(
     REPLY 품질 검사는 incomingMessage와 이전 assistant 발화를 모두 사용한다. 따라서
     Spring은 다른 분기의 대화가 아닌 사용자가 선택한 현재 가지를 전달해야 한다.
     """
+    return await _generate_response(
+        request.to_generate_request(), http_request, service
+    )
+
+
+@app.post(
+    "/internal/v1/excuses/evolve",
+    response_model=SpringExcuseResponse,
+    dependencies=InternalOnly,
+    tags=["Spring 내부 API"],
+    summary="기존 변명 진화",
+)
+async def evolve_excuse_for_spring(
+    request: SpringEvolveRequest,
+    http_request: Request,
+    service: GenerationService,
+) -> SpringExcuseResponse:
+    """Spring이 보낸 동일 대화 가지의 관계·문장을 유지해 변명을 다듬는다."""
     return await _generate_response(
         request.to_generate_request(), http_request, service
     )

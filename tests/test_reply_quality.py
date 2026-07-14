@@ -5,6 +5,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.config import Settings
+from app.llm import ReplyJudgeParseError
 from app.models import (
     Aftermath,
     ConversationRole,
@@ -16,13 +17,14 @@ from app.models import (
     Target,
     Tone,
 )
+from app.reply_quality import ReplyCandidateJudge, ReplyQualityVerdict
 from app.service import ExcuseGenerationService
 
 
 def result(excuse: str, options: list[str]) -> ExcuseResult:
     return ExcuseResult(
         excuse=excuse,
-        recommendedAction="바로 수정한다.",
+        recommendedAction="바로 확인한다.",
         likelyFollowUp="언제 올릴 수 있어?",
         replyOptions=options,
         successRate=60,
@@ -42,7 +44,23 @@ def result(excuse: str, options: list[str]) -> ExcuseResult:
     )
 
 
-def request() -> GenerateRequest:
+def valid_verdict() -> ReplyQualityVerdict:
+    return ReplyQualityVerdict(
+        candidateScores=[
+            ReplyCandidateJudge(
+                directness=36,
+                factuality=28,
+                registerScore=14,
+                fluency=14,
+            )
+            for _ in range(3)
+        ],
+        diversityScore=88,
+        semanticDuplicate=False,
+    )
+
+
+def method_request() -> GenerateRequest:
     return GenerateRequest(
         mode=GenerationMode.REPLY,
         situation="PPT 제출이 늦었다",
@@ -60,54 +78,290 @@ def request() -> GenerateRequest:
     )
 
 
-def test_reply_quality_gate_regenerates_repeated_answer():
+def privacy_request() -> GenerateRequest:
+    return GenerateRequest(
+        mode=GenerationMode.REPLY,
+        situation="회식 참석이 어렵습니다.",
+        target=Target.CUSTOM,
+        targetDescription="회사 부장님",
+        tone=Tone.MILD,
+        rootExcuse="개인 사정이 있어 회식 참석이 어렵습니다.",
+        currentExcuse="개인 사정이 있어 회식 참석이 어렵습니다.",
+        incomingMessage="개인 사정이 뭔가요?",
+        roundNumber=2,
+    )
+
+
+def test_reply_quality_gate_regenerates_repeated_answer() -> None:
     service = ExcuseGenerationService(
-        Settings(
-            CEREBRAS_API_KEY="test-key",
-            REPLY_QUALITY_MAX_ATTEMPTS=2,
-        )
+        Settings(CEREBRAS_API_KEY="test-key", REPLY_QUALITY_MAX_ATTEMPTS=2)
     )
     service.client.generate = AsyncMock(
         side_effect=[
-            result("곧 올리겠습니다.", ["곧 올리겠습니다.", "곧 올리겠습니다."]),
             result(
-                "지금 최종 검수 중이고 10분 안에 올리겠습니다.",
+                "곧 올리겠습니다.",
+                ["곧 올리겠습니다.", "곧 올리겠습니다.", "곧 올리겠습니다."],
+            ),
+            result(
+                "기본 문장과 달라도 첫 후보가 기준이 됩니다.",
                 [
-                    "파일 오류를 수정해서 바로 공유하겠습니다.",
-                    "현재 수정 중이며 완료되는 즉시 링크를 보내겠습니다.",
+                    "지금 일정 영향부터 확인하겠습니다.",
+                    "미리 공유하지 못해 죄송합니다. 확인되는 대로 정리해 말씀드리겠습니다.",
+                    "필요한 부분부터 정리해서 바로 공유드리겠습니다.",
                 ],
             ),
         ]
     )
+    service.client.judge_reply = AsyncMock(return_value=valid_verdict())
 
-    generated = asyncio.run(service.generate(request(), "request-1"))
+    generated = asyncio.run(service.generate(method_request(), "request-1"))
 
-    assert generated.excuse.startswith("지금 최종 검수")
+    assert generated.excuse == "지금 일정 영향부터 확인하겠습니다."
+    assert generated.replyOptions[0] == generated.excuse
     assert service.client.generate.await_count == 2
+    assert service.client.judge_reply.await_count == 1
 
 
-def test_reply_quality_gate_returns_422_after_final_rejection():
+def test_reply_quality_gate_returns_422_after_final_rejection() -> None:
     service = ExcuseGenerationService(
-        Settings(
-            CEREBRAS_API_KEY="test-key",
-            REPLY_QUALITY_MAX_ATTEMPTS=2,
-        )
+        Settings(CEREBRAS_API_KEY="test-key", REPLY_QUALITY_MAX_ATTEMPTS=2)
     )
-    repeated = result("곧 올리겠습니다.", ["곧 올리겠습니다.", "곧 올리겠습니다."])
+    repeated = result(
+        "곧 올리겠습니다.",
+        ["곧 올리겠습니다.", "곧 올리겠습니다.", "곧 올리겠습니다."],
+    )
     service.client.generate = AsyncMock(side_effect=[repeated, repeated])
+    service.client.judge_reply = AsyncMock()
 
     with pytest.raises(HTTPException) as error:
-        asyncio.run(service.generate(request(), "request-2"))
+        asyncio.run(service.generate(method_request(), "request-2"))
 
     assert error.value.status_code == 422
     assert error.value.detail["code"] == "REPLY_QUALITY_REJECTED"
+    assert service.client.judge_reply.await_count == 0
 
 
-def test_aftermath_rejects_generic_work_follow_up_questions():
+def test_detail_question_without_fact_requires_polite_privacy_boundary() -> None:
+    service = ExcuseGenerationService(Settings(CEREBRAS_API_KEY="test-key"))
+    generated = result(
+        "개인 사정이라서요.",
+        [
+            "개인 사정이라서요.",
+            "비밀이라서요 😉",
+            "개인적인 이유가 있습니다.",
+        ],
+    )
+
+    issues = service._reply_quality_issues(generated, privacy_request())
+
+    assert "근거 없는 상세 요구에 정중한 공개 거절로 직접 답하지 않음" in issues
+    assert "공식 관계 답장에 농담 또는 가벼운 회피가 포함됨" in issues
+    assert "공식 관계 답장에 이모지가 포함됨" in issues
+
+
+def test_formal_privacy_reply_passes_with_three_direct_options() -> None:
+    service = ExcuseGenerationService(
+        Settings(CEREBRAS_API_KEY="test-key", REPLY_QUALITY_MAX_ATTEMPTS=2)
+    )
+    service.client.generate = AsyncMock(
+        return_value=result(
+            "원래 기본 문장",
+            [
+                "개인적인 부분이라 자세히 말씀드리기 어렵습니다. 양해 부탁드립니다.",
+                "사적인 사유라 구체적으로 말씀드리기 어려운 점 이해 부탁드립니다.",
+                "이번 회식 참석은 어렵습니다. 개인적인 부분은 자세히 말씀드리기 어려운 점 양해 부탁드립니다.",
+            ],
+        )
+    )
+    service.client.judge_reply = AsyncMock(return_value=valid_verdict())
+
+    generated = asyncio.run(service.generate(privacy_request(), "request-3"))
+
+    assert generated.excuse == generated.replyOptions[0]
+    assert "자세히 말씀드리기 어렵습니다" in generated.excuse
+    assert service.client.judge_reply.await_count == 1
+
+
+def test_judge_semantic_duplicate_retries_then_returns_distinct_candidates() -> None:
+    service = ExcuseGenerationService(
+        Settings(CEREBRAS_API_KEY="test-key", REPLY_QUALITY_MAX_ATTEMPTS=2)
+    )
+    valid = result(
+        "기본",
+        [
+            "지금 일정 영향부터 확인하겠습니다.",
+            "미리 공유하지 못해 죄송합니다. 확인되는 대로 정리해 말씀드리겠습니다.",
+            "필요한 부분부터 정리해서 바로 공유드리겠습니다.",
+        ],
+    )
+    duplicate_verdict = valid_verdict().model_copy(
+        update={"diversityScore": 35, "semanticDuplicate": True}
+    )
+    service.client.generate = AsyncMock(side_effect=[valid, valid])
+    service.client.judge_reply = AsyncMock(
+        side_effect=[duplicate_verdict, valid_verdict()]
+    )
+
+    generated = asyncio.run(service.generate(method_request(), "request-4"))
+
+    assert generated.replyOptions[0] == generated.excuse
+    assert service.client.generate.await_count == 2
+    assert service.client.judge_reply.await_count == 2
+
+
+def test_privacy_boundary_candidates_allow_constrained_diversity() -> None:
+    """공개 거절은 결론이 같아도 문장 역할이 다르면 정상 후보로 취급한다."""
+    service = ExcuseGenerationService(Settings(CEREBRAS_API_KEY="test-key"))
+    constrained_verdict = ReplyQualityVerdict(
+        candidateScores=[
+            ReplyCandidateJudge(
+                directness=28,
+                factuality=27,
+                registerScore=12,
+                fluency=10,
+            )
+            for _ in range(3)
+        ],
+        diversityScore=45,
+        semanticDuplicate=True,
+        issues=["같은 공개 거절 결론을 공유함"],
+    )
+
+    assert service._judge_quality_issues(constrained_verdict, privacy_request()) == []
+
+
+def test_privacy_boundary_reply_is_not_rejected_for_judge_duplicate_flag() -> None:
+    """2라운드 공개 거절은 같은 결론이라는 이유만으로 422가 되지 않는다."""
+    service = ExcuseGenerationService(Settings(CEREBRAS_API_KEY="test-key"))
+    service.client.generate = AsyncMock(
+        return_value=result(
+            "기본",
+            [
+                "개인적인 부분이라 자세히 말씀드리기 어렵습니다. 양해 부탁드립니다.",
+                "사적인 사유라 구체적으로 말씀드리기 어려운 점 이해 부탁드립니다.",
+                "이번 회식 참석은 어렵습니다. 개인적인 부분은 자세히 말씀드리기 어렵습니다.",
+            ],
+        )
+    )
+    service.client.judge_reply = AsyncMock(
+        return_value=ReplyQualityVerdict(
+            candidateScores=[
+                ReplyCandidateJudge(
+                    directness=28,
+                    factuality=27,
+                    registerScore=12,
+                    fluency=10,
+                )
+                for _ in range(3)
+            ],
+            diversityScore=45,
+            semanticDuplicate=True,
+        )
+    )
+
+    generated = asyncio.run(service.generate(privacy_request(), "request-privacy"))
+
+    assert generated.excuse == generated.replyOptions[0]
+    assert service.client.generate.await_count == 1
+
+
+def test_incomplete_judge_verdict_does_not_block_safe_reply() -> None:
+    """느슨한 구조화 출력에서 Judge 필드가 빠져도 안전한 본문은 반환한다."""
+    service = ExcuseGenerationService(Settings(CEREBRAS_API_KEY="test-key"))
+    generated_result = result(
+        "기본",
+        [
+            "지금 일정 영향부터 확인하겠습니다.",
+            "미리 공유하지 못해 죄송합니다. 확인되는 대로 정리해 말씀드리겠습니다.",
+            "필요한 부분부터 정리해서 바로 공유드리겠습니다.",
+        ],
+    )
+    service.client.generate = AsyncMock(return_value=generated_result)
+    service.client.judge_reply = AsyncMock(
+        return_value=ReplyQualityVerdict(candidateScores=[])
+    )
+
+    generated = asyncio.run(service.generate(method_request(), "request-incomplete"))
+
+    assert generated.excuse == generated.replyOptions[0]
+    assert service.client.generate.await_count == 1
+
+
+def test_judge_parse_failure_falls_open_after_deterministic_checks() -> None:
+    service = ExcuseGenerationService(Settings(CEREBRAS_API_KEY="test-key"))
+    generated_result = result(
+        "기본",
+        [
+            "지금 일정 영향부터 확인하겠습니다.",
+            "미리 공유하지 못해 죄송합니다. 확인되는 대로 정리해 말씀드리겠습니다.",
+            "필요한 부분부터 정리해서 바로 공유드리겠습니다.",
+        ],
+    )
+    service.client.generate = AsyncMock(return_value=generated_result)
+    service.client.judge_reply = AsyncMock(side_effect=ReplyJudgeParseError())
+
+    generated = asyncio.run(service.generate(method_request(), "request-parse"))
+
+    assert generated.excuse == generated.replyOptions[0]
+    assert service.client.generate.await_count == 1
+
+
+def test_complete_judge_hard_violation_still_rejects() -> None:
+    service = ExcuseGenerationService(Settings(CEREBRAS_API_KEY="test-key"))
+    verdict = valid_verdict().model_copy(
+        update={
+            "candidateScores": [
+                ReplyCandidateJudge(
+                    directness=36,
+                    factuality=28,
+                    registerScore=14,
+                    fluency=14,
+                    hardViolation=True,
+                ),
+                ReplyCandidateJudge(
+                    directness=36,
+                    factuality=28,
+                    registerScore=14,
+                    fluency=14,
+                ),
+                ReplyCandidateJudge(
+                    directness=36,
+                    factuality=28,
+                    registerScore=14,
+                    fluency=14,
+                ),
+            ]
+        }
+    )
+
+    assert "1번 후보에 금지된 품질 문제가 있음" in service._judge_quality_issues(
+        verdict,
+        method_request(),
+    )
+
+
+def test_invented_fact_and_broken_particle_are_rejected() -> None:
+    service = ExcuseGenerationService(Settings(CEREBRAS_API_KEY="test-key"))
+    generated = result(
+        "은 회식 참석이 어렵습니다.",
+        [
+            "은 회식 참석이 어렵습니다.",
+            "몸살이 나서 참석이 어렵습니다.",
+            "개인적인 부분이라 자세히 말씀드리기 어렵습니다. 양해 부탁드립니다.",
+        ],
+    )
+
+    issues = service._reply_quality_issues(generated, privacy_request())
+
+    assert "조사만 남은 깨진 문장" in issues
+    assert "입력에 없는 구체적 사실을 새로 만듦" in issues
+
+
+def test_aftermath_rejects_generic_work_follow_up_questions() -> None:
     service = ExcuseGenerationService(Settings(CEREBRAS_API_KEY="test-key"))
     generated = result(
         "집에 정전이 나서 알람이 꺼졌습니다.",
-        ["정전 때문에 늦었습니다.", "알람이 꺼져 늦었습니다."],
+        ["정전 때문에 늦었습니다.", "알람이 꺼져 늦었습니다.", "정전 상황을 확인 중입니다."],
     ).model_copy(
         update={
             "aftermath": [
@@ -132,11 +386,11 @@ def test_aftermath_rejects_generic_work_follow_up_questions():
     assert "후폭풍 질문이 현재 변명의 주장이나 허점과 연결되지 않음" in issues
 
 
-def test_aftermath_accepts_questions_that_probe_the_excuse_claim():
+def test_aftermath_accepts_questions_that_probe_the_excuse_claim() -> None:
     service = ExcuseGenerationService(Settings(CEREBRAS_API_KEY="test-key"))
     generated = result(
         "집에 정전이 나서 알람이 꺼졌습니다.",
-        ["정전 때문에 늦었습니다.", "알람이 꺼져 늦었습니다."],
+        ["정전 때문에 늦었습니다.", "알람이 꺼져 늦었습니다.", "정전 상황을 확인 중입니다."],
     ).model_copy(
         update={
             "aftermath": [
