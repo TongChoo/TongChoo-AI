@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import (
     AliasChoices,
@@ -69,6 +69,55 @@ class GenerationMode(StrEnum):
     CREATE = "CREATE"
     REPLY = "REPLY"
     EVOLVE = "EVOLVE"
+
+
+class SituationSeverity(StrEnum):
+    """상황의 피해와 책임·수습 필요성을 나타내는 단계."""
+
+    LIGHT = "LIGHT"
+    NORMAL = "NORMAL"
+    SERIOUS = "SERIOUS"
+
+
+class SituationProfile(BaseModel):
+    """생성 전에 확정하는 심각도와 답변 길이 규칙."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    severity: SituationSeverity
+    formality: Literal["CASUAL", "POLITE", "FORMAL"]
+    hasImpact: bool
+    needsAccountability: bool
+    needsNextAction: bool
+    humorAllowed: bool
+    minSentences: Annotated[int, Field(ge=1, le=5)]
+    maxSentences: Annotated[int, Field(ge=1, le=5)]
+    minLength: Annotated[int, Field(ge=1, le=350)]
+    maxLength: Annotated[int, Field(ge=20, le=500)]
+
+    @model_validator(mode="after")
+    def validate_ranges(self) -> "SituationProfile":
+        if self.minSentences > self.maxSentences:
+            raise ValueError("minSentences는 maxSentences보다 클 수 없습니다.")
+        if self.minLength > self.maxLength:
+            raise ValueError("minLength는 maxLength보다 클 수 없습니다.")
+        return self
+
+    def for_mode(self, mode: GenerationMode) -> "SituationProfile":
+        if mode != GenerationMode.REPLY:
+            return self
+        ranges = {
+            SituationSeverity.LIGHT: (1, 2, 10, 100),
+            SituationSeverity.NORMAL: (1, 3, 30, 180),
+            SituationSeverity.SERIOUS: (2, 4, 60, 280),
+        }
+        minimum, maximum, min_length, max_length = ranges[self.severity]
+        return self.model_copy(update={
+            "minSentences": minimum,
+            "maxSentences": maximum,
+            "minLength": min_length,
+            "maxLength": max_length,
+        })
 
 
 class ConversationRole(StrEnum):
@@ -214,6 +263,7 @@ class GenerateRequest(BaseModel):
     target: Target
     targetDescription: Annotated[str | None, Field(default=None, max_length=100)]
     tone: Tone
+    situationSeverity: SituationSeverity | None = None
     memory: Annotated[str, Field(default="", max_length=12000)]
     rootExcuse: Annotated[
         str | None, Field(default=None, min_length=1, max_length=1000)
@@ -277,6 +327,7 @@ class SpringContextRequest(BaseModel):
     target: Target
     targetDescription: Annotated[str | None, Field(default=None, max_length=100)]
     tone: Tone
+    situationSeverity: SituationSeverity | None = None
     memory: Annotated[str, Field(default="", max_length=12000)]
     # Spring은 DB에서 선택한 현재 가지의 문맥을 이 필드들로 전달한다. 전용
     # create/reply DTO가 모두 이 공통 기반 모델을 쓰므로, 여기서 선언해야
@@ -324,6 +375,7 @@ class SpringContextRequest(BaseModel):
             target=self.target,
             targetDescription=self.targetDescription.strip() if self.targetDescription else None,
             tone=self.tone,
+            situationSeverity=self.situationSeverity,
             memory=self.memory,
             rootExcuse=self.rootExcuse,
             conversation=self.conversation,
@@ -429,6 +481,7 @@ class SpringExcuseResponse(BaseModel):
     realism: Annotated[int, Field(ge=1, le=5)]
     persuasion: Annotated[int, Field(ge=1, le=5)]
     suspicionLevel: SuspicionLevel
+    situationSeverity: SituationSeverity = SituationSeverity.NORMAL
     # REPLY UI는 세 후보의 순서 자체에 의미가 있다. Spring이 Item으로 재구성하면
     # 복사해 보낼 문장 API가 불필요하게 복잡해지므로, 생성 순서를 유지한 문자열 목록을
     # 그대로 전달한다.
@@ -438,7 +491,11 @@ class SpringExcuseResponse(BaseModel):
     aftermaths: Annotated[list[SpringAftermath], Field(max_length=4)]
 
     @classmethod
-    def from_result(cls, result: ExcuseResult) -> "SpringExcuseResponse":
+    def from_result(
+        cls,
+        result: ExcuseResult,
+        situation_severity: SituationSeverity = SituationSeverity.NORMAL,
+    ) -> "SpringExcuseResponse":
         """평면 제공자 결과를 Java 클라이언트의 내부 응답 구조로 변환한다.
 
         enumerate의 0 기반 순서는 Spring의 sortOrder 계약과 맞춘다. 목록 문자열은
@@ -450,6 +507,7 @@ class SpringExcuseResponse(BaseModel):
             realism=result.realism,
             persuasion=result.persuasion,
             suspicionLevel=result.suspicionLevel,
+            situationSeverity=situation_severity,
             replyOptions=result.replyOptions,
             riskFactors=[
                 SpringItem(content=item, sortOrder=index)
@@ -527,6 +585,29 @@ LLM_RESULT_SCHEMA = {
         "riskFactors",
         "aftermath",
         "remember",
+    ],
+    "additionalProperties": False,
+}
+
+
+SITUATION_PROFILE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "severity": {"type": "string", "enum": ["LIGHT", "NORMAL", "SERIOUS"]},
+        "formality": {"type": "string", "enum": ["CASUAL", "POLITE", "FORMAL"]},
+        "hasImpact": {"type": "boolean"},
+        "needsAccountability": {"type": "boolean"},
+        "needsNextAction": {"type": "boolean"},
+        "humorAllowed": {"type": "boolean"},
+        "minSentences": {"type": "integer"},
+        "maxSentences": {"type": "integer"},
+        "minLength": {"type": "integer"},
+        "maxLength": {"type": "integer"},
+    },
+    "required": [
+        "severity", "formality", "hasImpact", "needsAccountability",
+        "needsNextAction", "humorAllowed", "minSentences", "maxSentences",
+        "minLength", "maxLength",
     ],
     "additionalProperties": False,
 }
