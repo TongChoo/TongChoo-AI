@@ -14,7 +14,9 @@ def create_retry_instruction(issues: list[str]) -> str:
         + "\n- ".join(issues)
         + "\n입력에 없는 원인·현재 진행 상태·완료 상태·시간 약속을 만들지 마세요. "
         "세 replyOptions 모두 같은 사실과 같은 말투 기준을 지키세요. "
-        "잘못 인정·직접적인 사과·앞으로 할 수습 행동을 excuse에 넣으세요."
+        "잘못 인정·직접적인 사과·앞으로 할 수습 행동을 excuse에 넣으세요. "
+        "riskFactors에는 '정보 부족' 같은 포괄적 표현 대신 실제 대화 위험을 쓰고, "
+        "remember에는 이후 답장에서 유지할 입력 사실을 한 개 이상 쓰세요."
     )
 
 
@@ -75,7 +77,17 @@ def safe_create_body(
         options = ["미리 확인하지 못한 내 잘못이야. 미안해. 필요한 대응부터 확인할게.",
             "내가 미리 준비하지 못했어. 미안해. 할 수 있는 일부터 정리할게.",
             "준비가 부족했던 건 내 책임이야. 미안해. 필요한 대응을 먼저 확인할게."]
-    repaired = result.model_copy(update={"excuse": options[0], "replyOptions": options})
+    risk_factors = (
+        ["답변의 구체성 부족", "상대의 추가 질문 가능성"]
+        if formal
+        else ["설명의 구체성 부족", "추가 질문 가능성"]
+    )
+    repaired = result.model_copy(update={
+        "excuse": options[0],
+        "replyOptions": options,
+        "riskFactors": risk_factors,
+        "remember": [request.situation],
+    })
     return repair_aftermath_only(repaired, request)
 
 

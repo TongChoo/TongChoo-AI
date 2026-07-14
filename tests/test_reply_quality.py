@@ -2,7 +2,6 @@ import asyncio
 from unittest.mock import AsyncMock
 
 import pytest
-from fastapi import HTTPException
 
 from app.config import Settings
 from app.llm import ReplyJudgeParseError
@@ -122,7 +121,7 @@ def test_reply_quality_gate_regenerates_repeated_answer() -> None:
     assert service.client.judge_reply.await_count == 1
 
 
-def test_reply_quality_gate_returns_422_after_final_rejection() -> None:
+def test_reply_quality_gate_returns_safe_fallback_after_final_rejection() -> None:
     service = ExcuseGenerationService(
         Settings(CEREBRAS_API_KEY="test-key", REPLY_QUALITY_MAX_ATTEMPTS=2)
     )
@@ -133,11 +132,11 @@ def test_reply_quality_gate_returns_422_after_final_rejection() -> None:
     service.client.generate = AsyncMock(side_effect=[repeated, repeated])
     service.client.judge_reply = AsyncMock()
 
-    with pytest.raises(HTTPException) as error:
-        asyncio.run(service.generate(method_request(), "request-2"))
+    generated = asyncio.run(service.generate(method_request(), "request-2"))
 
-    assert error.value.status_code == 422
-    assert error.value.detail["code"] == "REPLY_QUALITY_REJECTED"
+    assert len(generated.replyOptions) == 3
+    assert len(set(generated.replyOptions)) == 3
+    assert generated.excuse == generated.replyOptions[0]
     assert service.client.judge_reply.await_count == 0
 
 
@@ -467,3 +466,43 @@ def test_aftermath_accepts_questions_that_probe_the_excuse_claim() -> None:
     )
 
     assert service.validator.aftermath_issues(generated) == []
+
+
+def test_create_rejects_generic_risk_and_empty_memory() -> None:
+    service = ExcuseGenerationService(Settings(CEREBRAS_API_KEY="test-key"))
+    generated = result(
+        "해당 부분은 아직 숙지하지 못했습니다. 확인 후 답변드리겠습니다.",
+        [
+            "해당 부분은 아직 숙지하지 못했습니다. 확인 후 답변드리겠습니다.",
+            "정확히 알지 못하는 내용이라 확인하겠습니다.",
+            "모르는 부분은 확인한 뒤 말씀드리겠습니다.",
+        ],
+    ).model_copy(update={"riskFactors": ["정보 부족"], "remember": []})
+
+    assert service.validator.create_auxiliary_issues(generated) == [
+        "위험 요소가 지나치게 포괄적임",
+        "기억해야 할 설정이 비어 있음",
+    ]
+
+
+def test_aftermath_rejects_question_linked_only_by_generic_word() -> None:
+    service = ExcuseGenerationService(Settings(CEREBRAS_API_KEY="test-key"))
+    generated = result(
+        "해당 부분은 아직 숙지하지 못했습니다. 확인 후 답변드리겠습니다.",
+        [
+            "해당 부분은 아직 숙지하지 못했습니다. 확인 후 답변드리겠습니다.",
+            "정확히 알지 못하는 내용이라 확인하겠습니다.",
+            "모르는 부분은 확인한 뒤 말씀드리겠습니다.",
+        ],
+    ).model_copy(update={
+        "aftermath": [Aftermath(
+            when="당일",
+            dayOffset=0,
+            question="어떤 부분이 정확히 궁금하신가요?",
+            collapseRate=20,
+        )]
+    })
+
+    assert "후폭풍 질문이 현재 변명의 주장이나 허점과 연결되지 않음" in (
+        service.validator.aftermath_issues(generated)
+    )

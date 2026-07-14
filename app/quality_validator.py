@@ -140,6 +140,16 @@ class QualityValidator:
         issues.extend(verdict.issues[:3])
         return list(dict.fromkeys(issues))
 
+    def create_auxiliary_issues(self, result: ExcuseResult) -> list[str]:
+        """화면에 노출되는 위험 요소와 기억 설정의 최소 정보량을 검사한다."""
+        issues: list[str] = []
+        generic_risks = {"정보 부족", "추가 확인 필요", "추가 확인이 필요함", "확인 필요"}
+        if any(item.strip() in generic_risks for item in result.riskFactors):
+            issues.append("위험 요소가 지나치게 포괄적임")
+        if not result.remember:
+            issues.append("기억해야 할 설정이 비어 있음")
+        return issues
+
     def aftermath_issues(
         self, result: ExcuseResult, request: GenerateRequest | None = None
     ) -> list[str]:
@@ -174,7 +184,8 @@ class QualityValidator:
 
 _GENERIC_WORDS = {
     "회의", "업무", "일정", "자료", "과제", "약속", "상황", "내용", "핵심",
-    "다음", "질문", "답변", "죄송", "바로", "지금", "정말", "제가", "저도",
+    "부분", "어떤", "정확히", "다음", "질문", "답변", "죄송", "바로", "지금",
+    "정말", "제가", "저도",
 }
 _AFTERMATH_SIGNALS = (
     "왜", "언제", "몇 시", "몇시", "어디", "누가", "진짜", "증거", "내역",

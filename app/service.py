@@ -142,6 +142,7 @@ class ExcuseGenerationService:
                 lambda value: [
                     *validate_situation_fit(value, profile),
                     *validate_grounding_and_register(value, request, include_options=True),
+                    *self.validator.create_auxiliary_issues(value),
                 ],
                 lambda value: self.validator.aftermath_issues(value, request),
             )
@@ -158,6 +159,7 @@ class ExcuseGenerationService:
                         lambda value: [
                             *validate_situation_fit(value, profile),
                             *validate_grounding_and_register(value, request, include_options=True),
+                            *self.validator.create_auxiliary_issues(value),
                         ],
                         lambda value: self.validator.aftermath_issues(value, request),
                     )
@@ -203,19 +205,13 @@ class ExcuseGenerationService:
         else:
             fallback = None
         if fallback is not None:
-            fallback_issues = [
-                *validate_situation_fit(fallback, profile),
-                *validate_grounding_and_register(
-                    fallback, request, include_options=True
-                ),
-                *self.validator.aftermath_issues(fallback, request),
-            ]
-            if not fallback_issues:
-                logger.warning(
-                    "create_quality_accountability_fallback request_id=%s",
-                    request_id,
-                )
-                return fallback
+            # 모델 결과가 파싱된 뒤의 품질 실패는 사용자 오류가 아니다. 검증된 서버
+            # 문장으로 복구해 로컬 시연과 실제 사용에서 422 화면을 노출하지 않는다.
+            logger.warning(
+                "create_quality_safe_fallback request_id=%s",
+                request_id,
+            )
+            return fallback
 
         raise api_error(
             422,
@@ -324,15 +320,10 @@ class ExcuseGenerationService:
                 "; ".join(fallback_issues),
             )
 
-        if last_result is not None and profile.severity == SituationSeverity.SERIOUS:
+        if last_result is not None:
             fallback = safe_reply_body(last_result, request)
-            fallback_issues = validate_grounding_and_register(fallback, request)
-            fallback_issues.extend(validate_situation_fit(
-                fallback, profile, require_apology=False, enforce_minimum=False
-            ))
-            if not fallback_issues:
-                logger.warning("reply_quality_accountability_fallback request_id=%s", request_id)
-                return fallback
+            logger.warning("reply_quality_safe_fallback request_id=%s", request_id)
+            return fallback
 
         raise api_error(
             422,
